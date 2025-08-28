@@ -1,0 +1,16 @@
+# Development dependencies
+pytest>=6.0
+pytest-cov
+black
+flake8
+mypy
+
+# Optional runtime dependencies
+cobaya>=3.0
+camb>=1.3.0
+matplotlib>=3.3.0
+tqdm
+
+# Build dependencies  
+build
+twine
