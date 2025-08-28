@@ -1,0 +1,20 @@
+dr6plus_lenslike.ACTDR6LensLike:
+  mock: false
+  nsims_act: 792.0
+  nsims_planck: 400.0
+  no_like_corrections: True
+  lens_only: true
+  trim_lmax: 2998
+  variant: act_baseline
+  apply_hartlap: true
+  limber: false
+  nz: 100
+  kmax: 10
+  scale_cov: null
+  type: []
+  speed: -1
+  stop_at_error: true
+  version: null
+  lmax: 4000
+  input_params: []
+  output_params: []
