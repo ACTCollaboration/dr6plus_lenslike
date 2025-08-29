@@ -31,7 +31,9 @@ spt3g,
 actspt3g_baseline,
 actspt3g_extended,
 actplanckspt3g_baseline,
-actplanckspt3g_extended
+actplanckspt3g_extended,
+dr6plus_fiducial_baseline,
+dr6plus_fiducial_extended,
 '''.strip().replace('\n','').split(',')]
 
 
@@ -223,6 +225,11 @@ def parse_variant(variant):
         baseline = True
         if '_baseline' not in variant:
             v = variant.split('_')[-1]
+    # Handle dr6plus_fiducial variants
+    if variant.startswith('dr6plus_fiducial'):
+        v = 'dr6plus_fiducial'
+        baseline = True if '_baseline' in variant else False
+
     include_planck = True if 'actplanck' in variant else False
     include_spt = True if 'actplanckspt3g' in variant else False
     include_spt_no_planck = True if 'actspt3g' in variant else False
@@ -335,7 +342,9 @@ def load_data(variant, indep=False, ddir=None,
         y = np.loadtxt(f'{ddir}/clkk_bandpowers_act_polonly.txt')
     elif v=='cibdeproj':
         y = np.loadtxt(f'{ddir}/clkk_bandpowers_act_cibdeproj.txt')
-
+    elif v=='dr6plus_fiducial':
+        # Load fiducial bandpowers for DR6+ variant
+        y = np.loadtxt(f'{ddir}/clkk_bandpowers_fiducial.txt')
     elif v=='spt3g':  
         spt_data = np.load(f'{ddir}/muse_likelihood.npz')
         y=spt_data['d_kk'][spt_start:spt_end]
@@ -411,6 +420,9 @@ def load_data(variant, indep=False, ddir=None,
                 fcov = np.loadtxt(f"{ddir}/covmat_act_cibdeproj_cmbmarg.txt")
             elif v=='pol':
                 fcov = np.loadtxt(f"{ddir}/covmat_act_polonly_cmbmarg.txt")
+            elif v=='dr6plus_fiducial':
+                # Use DR6+ night+day+deep covariance matrix for fiducial variant
+                fcov = np.loadtxt(f"{ddir}/covmat_dr6+nightdaydeep.txt")
             elif v=='spt3g':
                 fcov=spt_data['cov_kk']
                 fcov=fcov[spt_start:spt_end,spt_start:spt_end]
@@ -421,7 +433,8 @@ def load_data(variant, indep=False, ddir=None,
                     fcov = np.loadtxt(f"{ddir}/covmat_act_cmbmarg.txt")
 
     else:
-        if v not in [None,'cinpaint']: raise ValueError(f"Covmat for {v} without CMB marginalization is not available")
+        if v not in [None,'cinpaint','dr6plus_fiducial']: 
+            raise ValueError(f"Covmat for {v} without CMB marginalization is not available")
       
         if include_planck and include_spt:
             # When both Planck and SPT are enabled
@@ -433,8 +446,11 @@ def load_data(variant, indep=False, ddir=None,
             # When only SPT (no Planck) is enabled
             fcov = np.loadtxt(f'{ddir}/covmat_actspt3g_no_cmbmarg.txt')
         else:
-            # Default option
-            fcov = np.loadtxt(f'{ddir}/covmat_act.txt')
+            # Default option or dr6plus_fiducial
+            if v == 'dr6plus_fiducial':
+                fcov = np.loadtxt(f'{ddir}/covmat_dr6+nightdaydeep.txt')
+            else:
+                fcov = np.loadtxt(f'{ddir}/covmat_act.txt')
 
     d['full_act_cov'] = fcov.copy()
 

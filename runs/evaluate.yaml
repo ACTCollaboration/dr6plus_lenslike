@@ -1,0 +1,11 @@
+theory: !defaults [../base_config/class_sz]
+
+likelihood: !defaults [../base_config/lensing]
+
+params: !defaults [../base_config/lcdm_param]
+
+sampler: !defaults [../base_config/evaluate_sampler]
+
+output: /scratch/jiaqu/chains/evaluate
+
+force: True

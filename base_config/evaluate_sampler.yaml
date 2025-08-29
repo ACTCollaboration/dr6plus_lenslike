@@ -1,0 +1,17 @@
+evaluate:
+  # Configuration for evaluate sampler (useful for debugging)
+  override: 
+    # Baryon density parameter
+    omega_b: 0.02237
+    
+    # Cold dark matter density parameter  
+    omega_cdm: 0.1200
+    
+    # Hubble parameter
+    H0: 67.4
+    
+    # log(10^10 * A_s) - primordial amplitude
+    logA: 3.044
+    
+    # Scalar spectral index
+    n_s: 0.9649

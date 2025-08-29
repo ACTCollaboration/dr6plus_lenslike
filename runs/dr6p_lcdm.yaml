@@ -1,0 +1,14 @@
+theory: !defaults [../base_config/class_sz]
+
+likelihood:
+  dr6plus_lenslike.ACTDR6LensLike:
+    variant: dr6plus_fiducial_extended
+    lens_only: true
+
+params: !defaults [../base_config/lcdm_param]
+
+sampler: !defaults [../base_config/mcmc_sampler]
+
+output: /scratch/jiaqu/chains/evaluate_dr6plus_fiducial_extended_validation
+
+force: True
