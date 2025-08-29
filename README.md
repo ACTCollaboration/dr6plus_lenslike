@@ -7,8 +7,9 @@ Likelihood for the Atacama Cosmology Telescope DR6+ CMB lensing data.
 ### From source (development)
 
 ```bash
-git clone https://github.com/frankjqu/dr6plus_lenslike.git
+git clone 
 cd dr6plus_lenslike
 pip install -e .
 ```
+
 
