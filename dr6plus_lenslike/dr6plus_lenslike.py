@@ -34,6 +34,7 @@ actplanckspt3g_baseline,
 actplanckspt3g_extended,
 dr6plus_fiducial_baseline,
 dr6plus_fiducial_extended,
+daytime_fiducial_baseline,
 '''.strip().replace('\n','').split(',')]
 
 
@@ -229,6 +230,9 @@ def parse_variant(variant):
     if variant.startswith('dr6plus_fiducial'):
         v = 'dr6plus_fiducial'
         baseline = True if '_baseline' in variant else False
+    if variant.startswith('daytime_fiducial'):
+        v = 'daytime_fiducial'
+        baseline = True if '_baseline' in variant else False
 
     include_planck = True if 'actplanck' in variant else False
     include_spt = True if 'actplanckspt3g' in variant else False
@@ -345,6 +349,8 @@ def load_data(variant, indep=False, ddir=None,
     elif v=='dr6plus_fiducial':
         # Load fiducial bandpowers for DR6+ variant
         y = np.loadtxt(f'{ddir}/clkk_bandpowers_fiducial.txt')
+    elif v=='daytime_fiducial':
+        y = np.loadtxt(f'{ddir}/clkk_daytime_dddwS_daylens.txt')
     elif v=='spt3g':  
         spt_data = np.load(f'{ddir}/muse_likelihood.npz')
         y=spt_data['d_kk'][spt_start:spt_end]
@@ -423,6 +429,9 @@ def load_data(variant, indep=False, ddir=None,
             elif v=='dr6plus_fiducial':
                 # Use DR6+ night+day+deep covariance matrix for fiducial variant
                 fcov = np.loadtxt(f"{ddir}/covmat_dr6+nightdaydeep.txt")
+            elif v=='daytime_fiducial':
+                # Use daydeep+dwS covariance matrix for fiducial variant
+                fcov = np.loadtxt(f"{ddir}/cov_clkk_daytime_daylens.txt")
             elif v=='spt3g':
                 fcov=spt_data['cov_kk']
                 fcov=fcov[spt_start:spt_end,spt_start:spt_end]
@@ -433,7 +442,7 @@ def load_data(variant, indep=False, ddir=None,
                     fcov = np.loadtxt(f"{ddir}/covmat_act_cmbmarg.txt")
 
     else:
-        if v not in [None,'cinpaint','dr6plus_fiducial']: 
+        if v not in [None,'cinpaint','dr6plus_fiducial','daytime_fiducial']: 
             raise ValueError(f"Covmat for {v} without CMB marginalization is not available")
       
         if include_planck and include_spt:
@@ -449,6 +458,8 @@ def load_data(variant, indep=False, ddir=None,
             # Default option or dr6plus_fiducial
             if v == 'dr6plus_fiducial':
                 fcov = np.loadtxt(f'{ddir}/covmat_dr6+nightdaydeep.txt')
+            elif v == 'daytime_fiducial':
+                fcov = np.loadtxt(f'{ddir}/cov_clkk_daytime_daylens.txt')
             else:
                 fcov = np.loadtxt(f'{ddir}/covmat_act.txt')
 
