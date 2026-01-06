@@ -31,7 +31,6 @@ keywords = ["cosmology", "cmb", "lensing", "likelihood", "act", "atacama"]
 dependencies = [
     "numpy>=1.20.0",
     "scipy>=1.7.0",
-    "warnings",
 ]
 
 [project.optional-dependencies]

@@ -2,13 +2,12 @@ theory: !defaults [../base_config/class_sz]
 
 likelihood:
   dr6plus_lenslike.ACTDR6LensLike:
-    variant: dr6plus_fiducial_extended
+    variant: dr6plus_fiducial_baseline
     lens_only: true
 
-params: !defaults [../base_config/lcdm_param]
-
+params: !defaults [../base_config/lcdm_param_test]
 sampler: !defaults [../base_config/mcmc_sampler]
-
-output: /scratch/jiaqu/chains/evaluate_dr6plus_fiducial_extended_validation
+covmat: /scratch/jiaqu/covmats/day_fiducial_new++.covmat
+output: /scratch/jiaqu/chains/day_fiducial_new_2pt_like
 
 force: True

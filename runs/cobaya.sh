@@ -26,5 +26,5 @@ export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export COBAYA_USE_FILE_LOCKING=false
 
 
-srun -n 4 cobaya-run dr6p_lcdm.yaml
+srun -n 4 cobaya-run /home/jiaqu/dr6plus_lenslike/runs/act_day_bao_lcdm.yaml
 
