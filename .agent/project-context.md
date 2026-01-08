@@ -160,7 +160,49 @@ $$\mathrm{const} = 2[d\ln R/dC] \Delta C + [dN_1/dC^j] \Delta C^j - [dN_1/dC^{\k
 - `eq35_constant_correction.txt`: L, norm_term, n1_cmb_term, n1_kk_term, total
 - `eq35_constant_correction.npy`: NumPy dict with same data + clkk_fid
 
+## Equation 34: Modified Covariance for lens_only Mode (Section 11)
+
+For `lens_only=True`, the lensing covariance needs modification to account for CMB uncertainties:
+
+$$\bar{\Sigma}_{ij} = \Sigma_{ij} + M_i^{X,\ell} \, \mathrm{cov}_{\mathrm{CMB}}^{X\ell;Y\ell'} \, M_j^{Y,\ell'}$$
+
+where $M_i^{X,\ell} = -2 \frac{dA_L/dC^X}{f_{A_L}} + \frac{dN_1}{dC^X}$
+
+### Implementation (notebook Section 11)
+
+**Correct approach**: Transform M matrices to CMB bin space, then use binned Planck covariance directly.
+
+1. **M matrix binning** (ℓ dimension):
+   - M_binned has shape (18, 3001) after lensing L binning
+   - Transform to (18, n_cmb_bins) using Planck weights:
+   ```python
+   M_doubly_binned[:, b] = sum(M_binned[:, ell] * weight[ell]) / sum(weight)
+   ```
+
+2. **Planck covariance blocks** (after ell cuts):
+   - TT: 114 bins (ℓ ≤ 1000)
+   - TE: 69 bins (ℓ ≤ 600)
+   - EE: 69 bins (ℓ ≤ 600)
+   - Full cross-covariances included (TT-TE, TT-EE, TE-EE)
+
+3. **Covariance addition** (9 terms):
+   ```python
+   cov_add = M_TT @ cov_TT_TT @ M_TT.T + M_TT @ cov_TT_TE @ M_TE.T + ...
+   ```
+
+**Results:**
+- Max diagonal increase: ~4.86% at lowest L bin
+- Effect concentrated at low L (as expected)
+- Modified covariance remains positive definite
+
+**Output files (in notebooks/):**
+- `eq34_modified_covariance.npy`: Modified covariance with metadata
+- `eq34_modified_covariance.png`: Diagnostic plots
+
+**IMPORTANT**: The previous interpolation-based approach was incorrect. Binned covariance should NOT be interpolated to full ℓ resolution.
+
 ## Next Steps
 1. Implement equation (35) constant correction in `lens_only=True` mode
 2. Load pre-computed correction from notebook output files
 3. Apply correction to lensing bandpowers in likelihood
+4. Use modified covariance from eq34_modified_covariance.npy for lens_only mode
