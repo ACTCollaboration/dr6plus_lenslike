@@ -101,7 +101,7 @@ def pp_to_kk(clpp,ell):
     return clpp * (ell*(ell+1.))**2. / 4.
     
 def get_corrected_clkk(data_dict,clkk,cltt,clte,clee,clbb,suff='',
-                       do_norm_corr=True, do_N1kk_corr=True, do_N1cmb_corr=True,
+                       fid_norm=True, do_N1kk_corr=True, do_N1cmb_corr=True,
                        act_calib=False, no_like_cmb_corrections=False):
     if no_like_cmb_corrections:
         do_norm_corr = False
@@ -263,7 +263,7 @@ chi_square = -2 lnlike
 """
 
 def load_data(variant, indep=False, ddir=None,
-              lens_only=False,
+              lens_only=False, analytic_marg=False,
               apply_hartlap=True,like_corrections=True,mock=False,
               nsims_act=796,nsims_planck=400,trim_lmax=2998,scale_cov=None,
               version=None, act_cmb_rescale=False, act_calib=False,spt_start=0,spt_end=None):
@@ -444,7 +444,10 @@ def load_data(variant, indep=False, ddir=None,
             
             else:
                 if not include_planck:
-                    fcov = np.loadtxt(f"{ddir}/covmat_act_cmbmarg.txt")
+                    if analytic_marg:
+                        fcov = np.loadtxt(f"{ddir}/covmat_act_cmbmarg_analytic.txt")
+                    else:
+                        fcov = np.loadtxt(f"{ddir}/covmat_act_cmbmarg.txt")
 
     else:
         if v not in [None,'cinpaint','dr6plus_fiducial','day']: 
@@ -614,6 +617,7 @@ class ACTDR6LensLike(InstallableLikelihood):
     no_like_corrections = False
     no_actlike_cmb_corrections = False
     lens_only = False
+    analytic_marg = False  # Use analytic CMB-marginalized covariance (lens_only must be True)
     # Any ells above this will be discarded; likelihood must at least request ells up to this
     trim_lmax = 2998
     variant = "act_baseline"
@@ -635,8 +639,11 @@ class ACTDR6LensLike(InstallableLikelihood):
 
     def initialize(self):
         if self.lens_only: self.no_like_corrections = True
+        if self.analytic_marg and not self.lens_only:
+            raise ValueError("analytic_marg=True requires lens_only=True")
         if self.lmax<self.trim_lmax: raise ValueError(f"An lmax of at least {self.trim_lmax} is required.")
         self.data = load_data(variant=self.variant,indep=self.indep,lens_only=self.lens_only,
+                              analytic_marg=self.analytic_marg,
                               like_corrections=not(self.no_like_corrections),apply_hartlap=self.apply_hartlap,
                               mock=self.mock,nsims_act=self.nsims_act,nsims_planck=self.nsims_planck,
                               trim_lmax=self.trim_lmax,scale_cov=self.scale_cov,version=self.version,
