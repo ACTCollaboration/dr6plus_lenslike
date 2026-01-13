@@ -142,6 +142,22 @@ def get_corrected_clkk(data_dict,clkk,cltt,clte,clee,clbb,suff='',
     nclkk = clkk + norm_corr*clkk_fid + N1_kk_corr + N1_cmb_corr
     return nclkk
 
+
+def get_lens_only_corrected_clkk(data_dict, clkk):
+    """
+    Apply lens_only correction to theory clkk for analytic_marg mode.
+
+    Formula: nclkk = clkk + dN1_kk @ clkk + lens_only_const
+
+    The lens_only_const contains pre-computed terms:
+    -dN1_kk @ clkk_fid + CMB_marginalization_terms
+    """
+    dN1_kk = data_dict['dN1_kk']
+    lens_only_const = data_dict['lens_only_const']
+    nclkk = clkk + dN1_kk @ clkk + lens_only_const
+    return nclkk
+
+
 def standardize(ls,cls,trim_lmax,lbuffer=2,extra_dims="y"):
     cstart = int(ls[0])
     diffs = np.diff(ls)
@@ -299,6 +315,8 @@ def load_data(variant, indep=False, ddir=None,
 
 
     print(f"Loading ACT DR6 lensing likelihood {version}...")
+    if analytic_marg:
+        print("Using analytic CMB-marginalized covariance")
     v,baseline,include_planck,include_spt,include_spt_no_planck, only_spt= parse_variant(variant)
     if include_planck and act_cmb_rescale: raise ValueError
     
@@ -315,6 +333,7 @@ def load_data(variant, indep=False, ddir=None,
     d['include_spt_no_planck'] = include_spt_no_planck
     d['likelihood_corrections'] = like_corrections
     d['only_spt'] = only_spt
+    d['analytic_marg'] = analytic_marg
 
     # Fiducial spectra
     if like_corrections:
@@ -449,6 +468,16 @@ def load_data(variant, indep=False, ddir=None,
                     else:
                         fcov = np.loadtxt(f"{ddir}/covmat_act_cmbmarg.txt")
 
+        if analytic_marg:
+            # Load dN1_kk matrix for lens_only correction
+            n1mat = np.loadtxt(f"{ddir}/like_corrs/N1der_KK_lmin600_lmax3000_full.txt")
+            fAL_ls = np.arange(n1mat.shape[0])  # L values
+            d['dN1_kk'] = standardize(fAL_ls, n1mat, trim_lmax, extra_dims="yy")
+
+            # Load pre-computed lens_only constant correction
+            lens_only_data = np.load(f"{ddir}/lens_only_const.npy", allow_pickle=True).item()
+            d['lens_only_const'] = lens_only_data['eq35_const'][:trim_lmax+1]
+
     else:
         if v not in [None,'cinpaint','dr6plus_fiducial','day']: 
             raise ValueError(f"Covmat for {v} without CMB marginalization is not available")
@@ -582,9 +611,14 @@ def generic_lnlike(data_dict,ell_kk,cl_kk,ell_cmb,cl_tt,cl_ee,cl_te,cl_bb,trim_l
         bclkk = d['binmat_act'] @ clkk_act
 
     else:
-        clkk_act = get_corrected_clkk(data_dict,cl_kk,cl_tt,cl_te,cl_ee,cl_bb,
-                                  do_norm_corr=do_norm_corr,act_calib=act_calib,
-                                  no_like_cmb_corrections=no_actlike_cmb_corrections) if d['likelihood_corrections'] else cl_kk
+        if d['likelihood_corrections']:
+            clkk_act = get_corrected_clkk(data_dict,cl_kk,cl_tt,cl_te,cl_ee,cl_bb,
+                                      do_norm_corr=do_norm_corr,act_calib=act_calib,
+                                      no_like_cmb_corrections=no_actlike_cmb_corrections)
+        elif d.get('analytic_marg', False):
+            clkk_act = get_lens_only_corrected_clkk(data_dict, cl_kk)
+        else:
+            clkk_act = cl_kk
         bclkk = d['binmat_act'] @ clkk_act
     if d['include_planck']:
         clkk_planck = get_corrected_clkk(data_dict,cl_kk,cl_tt,cl_te,cl_ee,cl_bb,'_planck') if d['likelihood_corrections'] else cl_kk
