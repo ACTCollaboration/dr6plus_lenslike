@@ -201,6 +201,19 @@ where $M_i^{X,\ell} = -2 \frac{dA_L/dC^X}{f_{A_L}} + \frac{dN_1}{dC^X}$
 
 **IMPORTANT**: The previous interpolation-based approach was incorrect. Binned covariance should NOT be interpolated to full ℓ resolution.
 
+### Section 12: Verification of Double-binning vs Interpolated Approaches
+
+Notebook Section 12 compares two approaches for Eq. 34 modified covariance:
+
+1. **Approach 1 (Double-binning)**: M matrices binned along ℓ using ACT bandpower windows, with full binned CMB covariance including cross-spectrum terms.
+
+2. **Approach 2 (Interpolated)**: Unbinned M matrices with diagonal-only interpolated variance from ACT bins.
+
+**Key finding**: Approach 1 is more rigorous as it properly accounts for full CMB covariance structure including cross-spectrum correlations. Approach 2 provides a simpler approximation but ignores off-diagonal covariance.
+
+**Output files:**
+- `eq34_approach_comparison.png`: Side-by-side comparison plot
+
 ## Next Steps
 1. Implement equation (35) constant correction in `lens_only=True` mode
 2. Load pre-computed correction from notebook output files
