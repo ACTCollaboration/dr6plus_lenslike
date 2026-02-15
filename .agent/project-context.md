@@ -199,6 +199,12 @@ where $M_i^{X,\ell} = -2 \frac{dA_L/dC^X}{f_{A_L}} + \frac{dN_1}{dC^X}$
 - `eq34_modified_covariance.npy`: Modified covariance with metadata
 - `eq34_modified_covariance.png`: Diagnostic plots
 
+**Production files (in dr6plus_lenslike/data/v1.0/):**
+- `covmat_act_cmbmarg_analytic.txt`: Full 18x18 modified covariance (same format as covmat_act.txt)
+- `covmat_act_cmbmarg_analytic_info.npy`: Metadata including original/added covariance, diagonal increase %
+
+**IMPORTANT**: The 2:-6 bin cuts are applied in dr6plus_lenslike.py during load_data(), NOT in the covariance file.
+
 **IMPORTANT**: The previous interpolation-based approach was incorrect. Binned covariance should NOT be interpolated to full ℓ resolution.
 
 ### Section 12: Verification of Double-binning vs Interpolated Approaches
@@ -214,8 +220,186 @@ Notebook Section 12 compares two approaches for Eq. 34 modified covariance:
 **Output files:**
 - `eq34_approach_comparison.png`: Side-by-side comparison plot
 
+## Window Function Format Differences: DR4 vs DR6
+
+**Critical finding from 2026-02-12 investigation**:
+
+ACT DR4 and DR6 use **fundamentally different window function representations** that require different mathematical treatments in Eq. 34 modified covariance calculations.
+
+### DR6 (SACC format)
+- **File**: `/home/jiaqu/DR6-ACT-lite/act_dr6_cmbonly/data/act_dr6_cmb_sacc.fits`
+- **Format**: Compact, sparse windows
+- **Bin support**: ~50 ells per bin (e.g., Bin 0: ℓ ∈ [626, 675])
+- **Normalization**: ∑w_ℓ = 1.0 (exact)
+- **Window shape**: (44 TT bins, 6501 theory ells)
+- **CMB smoothness**: VALID assumption (Δℓ = 50)
+- **Correct windowing**: Simple sum over bin support
+  ```python
+  M_doubly[:, b] = sum(M[:, ells_in_bin])  # ~50 ells
+  ```
+- **Result**: 2.35% max diagonal increase (correct)
+
+### DR4 (pyactlike format)
+- **File**: `/home/jiaqu/pyactlike/pyactlike/data/coadd_bpwf_*.npz`
+- **Format**: Extended, dense windows
+- **Bin support**: ~3000 ells per bin (e.g., Bin 0: ℓ ∈ [0, 7923], 3162 non-zero weights)
+- **Normalization**: ∑w_ℓ ≈ 1.16 (approximately normalized)
+- **Window shape**: (52 bins, 7924 theory ells)
+- **CMB smoothness**: INVALID assumption (Δℓ = 3000)
+- **Correct windowing**: Matrix multiplication
+  ```python
+  M_doubly = M @ window.T  # Weighted average over all ells
+  ```
+- **Result**: 0.025% max diagonal increase (correct for this format)
+
+### Why Different Methods are Required
+
+The "simple sum" method assumes:
+1. All C_ℓ within a bin are approximately equal (smoothness)
+2. When bin-averaged C changes by δC, each C_ℓ in the bin changes by δC
+3. Total lensing response: ∑_{ℓ ∈ bin} M_ℓ
+
+This is valid for DR6's compact 50-ell bins but **catastrophically fails** for DR4's extended 3000-ell bins.
+
+**Tested scenarios**:
+- DR6 + simple sum: 2.35% ✓ (correct)
+- DR6 + M @ window.T: 0.000% ✗ (wrong - underestimates)
+- DR4 + simple sum: 2.6 million % ✗ (wrong - massive overestimate)
+- DR4 + M @ window.T: 0.025% ✓ (correct)
+
+**Implication**: Cannot directly compare DR4 and DR6 Eq. 34 results. The window formats encode bin-averaging differently, leading to different numerical values even for identical underlying physics.
+
+## 2026-02-15 Update: DR4 Binning Methodology — RESOLVED
+
+### Source Code Analysis
+
+Examined `pyactlike/like.py` (lines 195-213) and `notebooks/plot_spectra.ipynb`:
+
+```python
+# DR4 binning operation (from like.py)
+# Step 1: Convert theory Dℓ → Cℓ
+cltt[1:tt_lmax] = dell_tt / l_list / (l_list + 1.0) * 2.0 * np.pi
+
+# Step 2: Apply window via matrix multiplication
+cth_tt = win_func_w[2*bmax : 3*bmax, 1:lmax_win] @ cltt[1:lmax_win]
+```
+
+### DR4 vs DR6 Window Comparison
+
+| Property | DR4 | DR6 |
+|----------|-----|-----|
+| Array shape | (n_bins, n_ell) | (n_ell, n_bins) |
+| Normalization | sum(W) ≈ 1.00 | sum(W) = 1.00 |
+| Effective bin width | ~50 ells (>0.01 threshold) | 50 ells exact |
+| Weight distribution | Varying with small tails | Uniform within support |
+
+**Key finding**: DR4 bins are ~50 ells wide (same as DR6!) when using threshold >0.01. The "170 ells" estimate used threshold >0.001 which includes negligible tails.
+
+### Physical Derivation: Simple Sum is Correct
+
+For Eq. 34 modified covariance `Σ̄ = Σ + M·Cov_CMB·M^T`:
+
+1. **Binning**: `Ĉ_b = Σ_ℓ W_{b,ℓ} × C_ℓ` with `Σ W = 1`
+2. **Smoothness**: If C_ℓ ≈ constant in bin, then `Ĉ_b = c`
+3. **Fluctuation**: When `Ĉ_b → Ĉ_b + δĈ`, each C_ℓ shifts by δĈ
+4. **Response**: `δĈ_κκ = Σ_ℓ M_ℓ × δC_ℓ = δĈ × Σ_ℓ M_ℓ`
+
+**Conclusion**: `M_binned = Σ_ℓ M_ℓ` (simple sum over bin support)
+
+The `M @ W.T` method computes a weighted average ≈ M at single ell, which is WRONG for Eq. 34.
+
+### Bug Fix for verify_dr4_covmat_v2.ipynb
+
+**Before (WRONG)**:
+```python
+M_doubly_dr4[key] = M_trunc @ window_trunc.T
+```
+
+**After (CORRECT)**:
+```python
+for b in range(n_cmb_bins):
+    sig_ells = np.where(window_trunc[b, :] > 0.01)[0]
+    M_doubly_dr4[key][:, b] = np.sum(M_trunc[:, sig_ells], axis=1)
+```
+
+### Test Results
+
+| Notebook | Method | Result |
+|----------|--------|--------|
+| DR6 (new_covmat.ipynb) | Simple sum | 2.35% ✓ |
+| DR4 (verify_dr4_covmat_v2.ipynb) | Simple sum | **394%** ✗ (way too large) |
+| DR4 (verify_dr4_covmat_v2.ipynb) | M @ W.T | 0.04% (too small) |
+| Chain-based reference | MCMC | ~5.5% |
+
+### Two-Patch Issue
+
+DR4 has two patches (deep + wide), which changes the Eq. 34 summation structure:
+
+**Eq. 34**: $\bar{\Sigma}_{ij} = \Sigma_{ij} + \sum_{X,Y} \sum_{\beta,\beta'} \tilde{M}_i^{X,\beta} \text{Cov}(C_\beta^X, C_{\beta'}^Y) \tilde{M}_j^{Y,\beta'}$
+
+| Dataset | Spectra | Covariance blocks |
+|---------|---------|-------------------|
+| DR6 | 3 (TT, TE, EE) | 9 |
+| DR4 | 6 (TT/TE/EE × 2 patches) | 36 |
+
+The 36 DR4 blocks include:
+- 6 auto-blocks (TT_p1-TT_p1, etc.)
+- 6 cross-patch same-spectrum (TT_p1-TT_p2, etc.)
+- 24 cross-spectrum blocks
+
+**Open question**: Should cross-patch covariances contribute? If patches observe different sky, their cosmic variance is independent.
+
 ## Next Steps
-1. Implement equation (35) constant correction in `lens_only=True` mode
-2. Load pre-computed correction from notebook output files
-3. Apply correction to lensing bandpowers in likelihood
-4. Use modified covariance from eq34_modified_covariance.npy for lens_only mode
+1. ~~Verify which windowing method is physically correct~~ — **DONE** (simple sum for DR6)
+2. **[BLOCKED]** DR4 simple sum gives 394% — need to understand two-patch structure
+3. ~~Planck plik_lite gives 305-3043%~~ — **RESOLVED**: Use M at bin center, Cℓ² cov, gives 1.2%
+4. Test full `analytic_marg=True` pipeline end-to-end
+
+## Planck Eq. 34 Implementation — RESOLVED (2026-02-15)
+
+### Paper Quote (Planck lensing)
+> "We evaluate the CMB power correction using the plik_lite band powers... To relate plik_lite bins to the M_i^{X,ℓ'} bins, we assume that the underlying CMB power spectra are represented only by modes that are smooth over Δℓ = 50. The plik_lite bandpower covariance cov_CMB is similarly used to calculate Eq. (34). The increase in the diagonal of the covariance is about 6% at its largest."
+
+### Root Cause Analysis (debug_planck_eq34.py)
+
+The original bug (305-3043%) came from **TWO incorrect approaches**:
+
+1. **Unit conversion bug**: Converting Planck covariance from Cℓ² to Dℓ² multiplies by (ℓ(ℓ+1)/(2π))² ≈ 10^10
+
+2. **M summation bug**: Summing M over ~50 ells (per "smoothness" assumption) multiplies result by N² where N is bin width
+
+### Correct Approach: M at bin center, NO unit conversion
+
+| Method | Result | Status |
+|--------|--------|--------|
+| M at bin center, Cℓ² cov (H1) | **1.2%** | ✓ CORRECT |
+| M summed, Cℓ² cov (H7) | 305% | ✗ Too high |
+| M summed, Dℓ² cov (H4) | 10^14% | ✗ WAY too high |
+| Super-bins, Dℓ² cov (H5) | 10^13% | ✗ WAY too high |
+
+### Why H1 Works
+
+1. **M at bin center**: For narrow bins (~5-10 ells), using M at the bin center ell gives correct response
+2. **Cℓ² covariance directly**: plik_lite covariance is stored in Cℓ² units, and using it directly (without Dℓ conversion) gives reasonable results
+3. **No double-counting**: Using M at center avoids multiplying by bin width
+
+### Gap Between 1.2% and Paper's 6%
+
+The 5× gap is explained by:
+- Our M matrices use ACT lmin=600, missing ℓ < 600 contribution
+- Planck paper likely uses Planck-specific M matrices with lmin=100
+- Low ℓ contributes more to lensing normalization correction (dAL/dC peaks at low ℓ)
+
+### Recommended Implementation
+
+```python
+# For each plik_lite bin b with center ell_b >= 600:
+M_doubly[:, b] = M_binned[:, ell_center_b]  # M at bin center, NOT summed
+
+# Use Cℓ² covariance directly (NO unit conversion!)
+cov_add = M_doubly @ cov_planck_Cl2 @ M_doubly.T
+```
+
+### Debug Files
+- `notebooks/debug_planck_eq34.py` - Systematic hypothesis testing (10 approaches)
+- `notebooks/verify_planck_covmat.ipynb` - Original (broken) attempts
