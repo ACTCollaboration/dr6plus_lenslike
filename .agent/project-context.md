@@ -403,3 +403,57 @@ cov_add = M_doubly @ cov_planck_Cl2 @ M_doubly.T
 ### Debug Files
 - `notebooks/debug_planck_eq34.py` - Systematic hypothesis testing (10 approaches)
 - `notebooks/verify_planck_covmat.ipynb` - Original (broken) attempts
+
+## Planck PR4 Reference Implementation (2026-02-15)
+
+**Source**: `/home/jiaqu/planck_PR4_lensing/` (J. Carron et al., arXiv:2206.07773)
+
+### Two Likelihood Versions
+1. **PlanckPR4Lensing** — Full likelihood
+   - `fields_required = T E P`
+   - Linear correction depends on TT, EE, TE, PP
+   - Has calibration parameter `A_planck`
+
+2. **PlanckPR4LensingMarged** — CMB-marginalized
+   - `fields_required = P` (only lensing)
+   - Linear correction depends only on PP (dN1/dC^kk)
+   - No calibration parameter needed
+   - Uses precomputed CMB-marginalized covariance
+
+### Data Files
+```
+data_pr4/
+├── pp_*_cov.dat                    # Regular covariance (9×9)
+├── pp_*_CMBmarged_cov.dat          # CMB-marginalized covariance
+├── pp_*_lens_delta_window/         # M matrices (TT, EE, TE, PP columns)
+├── pp_*_CMBmarged_lens_delta_window/  # M matrices (PP only)
+├── pp_*_lensing_fiducial_correction.dat
+└── pp_*_CMBmarged_lensing_fiducial_correction.dat
+```
+
+### CMB Marginalization Effect
+| Bin | L_center | Cov increase |
+|-----|----------|--------------|
+| 1   | 28       | 4.4%         |
+| 2   | 64       | 13.0%        |
+| 3   | 106      | 13.6%        |
+| 4-9 | 150-377  | 0.3-7.9%     |
+
+### Key Differences from Our Approach
+| Aspect | Planck PR4 | ACT DR6 |
+|--------|------------|---------|
+| M matrix lmin | 100 | 600 |
+| Max cov increase | ~13% | ~2% |
+| Bins | 9 (L=8-400) | 18 (L~40-700) |
+
+### Cobaya Integration
+The likelihood uses Cobaya's CMBlikes base class:
+```python
+# Linear correction formula (cmblikes.py line 479):
+band += self.linear_correction.bin(Cls) - self.fid_correction.T
+# Equivalent to: band += M @ (Cls_theory - Cls_fiducial)
+```
+
+### Missing Information
+- Code that generates CMBmarged covariance is not public
+- Unknown what CMB covariance was used (internal Planck, not plik_lite?)
