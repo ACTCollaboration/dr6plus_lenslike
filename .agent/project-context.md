@@ -7,7 +7,11 @@ Python package for ACT DR6+ CMB lensing likelihood computations. Used for cosmol
 - `dr6plus_lenslike/dr6plus_lenslike.py` — Main likelihood implementation
 - `tests/test_dr6plus_lenslike.py` — Unit tests (uses mocked data)
 - `base_config/` — YAML configuration files for Cobaya runs
-- `runs/` — Run configurations
+  - `camb.yaml` — Standard CAMB (pip)
+  - `camb_alens.yaml` — CAMB_alens fork (`/home/jiaqu/CAMB_alens`), A_lens/B_lens + CosmoRec, requires `module load gsl`
+  - `camb_disputauble.yaml` — disputauble pip package (`disputauble.CobayaCAMB_mnuEff`), negative mnu extrapolation
+  - `class_sz.yaml` — CLASS_SZ solver
+- `runs/` — Run configurations (select theory via `theory: !defaults [../base_config/camb]`)
 
 ## Variants
 Supported variants: `act_baseline`, `act_extended`, `actplanck_baseline`, `actplanck_extended`, `act_polonly`, `act_cibdeproj`, `act_cinpaint`, `spt3g`, `actspt3g_baseline`, `actspt3g_extended`, `actplanckspt3g_baseline`, `actplanckspt3g_extended`, `dr6plus_fiducial_baseline`, `dr6plus_fiducial_extended`, `day_baseline`, `day_extended`
@@ -457,3 +461,472 @@ band += self.linear_correction.bin(Cls) - self.fid_correction.T
 ### Missing Information
 - Code that generates CMBmarged covariance is not public
 - Unknown what CMB covariance was used (internal Planck, not plik_lite?)
+
+## 2026-02-15 Investigation: Chain-Based Eq. 34 vs Analytic — UNRESOLVED
+
+### Goal
+Match chain-based result (~5.2% diagonal increase at L≈123) using measured DR4 + Planck CMB covariances with analytic Eq. 34.
+
+### Reference Chain Notebook
+`/home/jiaqu/DW/100223_compute_cov_norm.ipynb`
+
+Key chain approach:
+```python
+# For each parameter sample from ACT+Planck posterior:
+ps_cl = make_spec(As, ns, H0, ombh2, omch2, tau)  # CAMB theory
+response = lin_corr_matrix @ (ps_cl - ps_ref)  # dAL/dC @ ΔCℓ
+norm = 2 * response / AL_ref  # AL_ref = n0mv / (L(L+1)/2)²
+storage[i] = bin(norm)
+
+# Final covariance:
+cov_norm = np.cov((storage * binned_clkk_fid).T)
+```
+
+### Key Insight: Parameter-Induced vs Measured Covariance
+
+**The chain uses PARAMETER-INDUCED Cℓ covariance**, not measured CMB covariance:
+- Chain samples from ACT+Planck posterior → computes CAMB theory Cℓ(θ)
+- Takes covariance of theory Cℓ variations across samples
+- This captures only parameter uncertainty (~1% in As, ~0.4% in ns)
+
+**Measured CMB covariance is MUCH larger**:
+- Includes cosmic variance + instrument noise + systematics
+- ~30-40× larger than parameter-induced covariance
+
+### DR4 Data Structure
+- **Bandpowers**: `/home/jiaqu/pyactlike/pyactlike/data/cl_cmb_ap.dat`
+  - 260 bins = 2 patches × (40 TT + 45 TE + 45 EE)
+  - Dℓ in µK² units
+
+- **Covariance**: `/home/jiaqu/pyactlike/pyactlike/data/c_matrix_ap.dat`
+  - 260×260 Fortran binary
+  - Full cross-patch, cross-spectrum correlations
+
+- **Windows**: `coadd_bpwf_15mJy_191127_lmin2.npz`, `coadd_bpwf_100mJy_191127_lmin2.npz`
+  - Shape (520, 7924), ~100 ells per bin with >1% weight
+
+### M Matrix Versions Discovered
+
+| Location | Value at (L=100, ℓ=800) | Notes |
+|----------|-------------------------|-------|
+| spt_act/v1.2 | -5.02e-10 | Current standard |
+| blake_plot/misc | -1.97e-17 | 10^7× smaller |
+| act_dr6_lenslike/v1.1 | -1.97e-17 | Same as blake_plot |
+| act_dr6_lenslike/v1.2 | -5.02e-10 | Same as spt_act |
+
+**v1.1 → v1.2 changed by factor ~10^7!** This explains some historic confusion.
+
+### Test Results
+
+| Approach | Unit Conversion | M Binning | Result | Target |
+|----------|-----------------|-----------|--------|--------|
+| Raw Dℓ cov | None | Center | 10^14% | 5% |
+| Cℓ (µK²) cov | Dℓ→Cℓ | Center | 172% | 5% |
+| Cℓ (µK²) cov | Dℓ→Cℓ | Window | 169% | 5% |
+| Dimensionless Cℓ | Dℓ→Cℓ/T² | Center | ~0% | 5% |
+| Blake M matrix | None | Window | 0.025% | 5% |
+
+### Why All Approaches Fail
+
+The ~170% result (with Cℓ µK² covariance) is ~33× too high. This matches the expected ratio between:
+- Measured CMB covariance (cosmic variance + noise)
+- Parameter-induced Cℓ covariance (theory variation only)
+
+The chain's parameter-induced covariance is approximately:
+```python
+Var(Cℓ)_param ≈ Cℓ² × [4(σAs/As)² + (σns × ∂lnCℓ/∂ns)² + ...]
+            ≈ Cℓ² × 0.01²  # ~1% parameter variation
+```
+
+While measured covariance is:
+```python
+Var(Cℓ)_measured ≈ Cℓ² × 2/(2ℓ+1) + noise  # cosmic variance dominant
+```
+
+For ℓ~1000: measured/param ≈ (2/2001) / 0.0001 ≈ 100× larger.
+
+### User's Question (Unresolved)
+> "Is there a reason why we cannot apply the same binning function to the M matrix, then extrapolate to L=3000?"
+
+Tested via `M @ W.T` (window-weighted average), gives 169% — still wrong.
+
+The fundamental issue appears to be that measured CMB covariance cannot substitute for parameter-induced covariance without a scaling factor.
+
+### Scripts Created
+- `notebooks/match_chain_measured_cov.py` — 7 binning approaches tested
+- `notebooks/test_blake_M_matrix.py` — M matrix version comparison
+- `notebooks/test_unit_conversion.py` — Unit conversion tests
+- `notebooks/compare_all_M_matrices.py` — Comprehensive M matrix analysis
+
+### Open Questions
+1. Is there a scaling factor to convert measured → parameter-induced covariance?
+2. Should the two-patch structure of DR4 affect the result?
+3. Does the chain use a different M matrix file entirely?
+4. Is the "simple sum" vs "window average" distinction important here?
+
+### Conclusion (2026-02-15)
+Cannot match chain-based ~5% result using measured CMB covariance with any binning method tested. The measured covariance appears to be fundamentally ~30-40× larger than what the chain computes from parameter variations. Further investigation paused pending clarification of the physical relationship between measured and parameter-induced CMB covariances.
+
+## 2026-02-16: Analytic Eq. 34 Implementation — COMPLETE
+
+### Production Script
+**File**: [src/lensing_only_cov_marginalization.py](../src/lensing_only_cov_marginalization.py)
+
+Based on [notebooks/new_covmat.ipynb](../notebooks/new_covmat.ipynb), formalized into a reusable module.
+
+### Module Structure
+```python
+# Exported functions in src/__init__.py
+from .lensing_only_cov_marginalization import (
+    compute_analytic_covariance,   # Main Eq. 34 computation
+    compute_chain_covariance,      # Chain-based (for comparison)
+    compare_approaches,            # Side-by-side visualization
+)
+```
+
+### Usage
+```bash
+# Analytic mode (default)
+python src/lensing_only_cov_marginalization.py --mode analytic
+
+# Save production files
+python src/lensing_only_cov_marginalization.py --mode analytic --save-production
+
+# Chain-based comparison
+python src/lensing_only_cov_marginalization.py --mode chain --nsample 1000
+
+# Full comparison
+python src/lensing_only_cov_marginalization.py --mode compare
+```
+
+### Verified Implementation (Triple-Checked)
+
+| Component | Notebook Line | Script Line | Status |
+|-----------|---------------|-------------|--------|
+| `build_M_matrix` | 746-758 | 84-97 | ✓ IDENTICAL |
+| M matrix indices (TT=0, EE=1, TE=3) | 762-764 | 181-183 | ✓ IDENTICAL |
+| Unit conversion (Cℓ→Dℓ) | 790-796 | 199-205 | ✓ IDENTICAL |
+| `doubly_bin_M` (simple sum) | 892-922 | 115-143 | ✓ IDENTICAL |
+| cov_add (9 terms) | 1042-1063 | 252-273 | ✓ IDENTICAL |
+
+### Key Computation: M Matrix
+```python
+# M^X_{L,ℓ} = -2 * dAL_dC[L,ℓ] / fAL[L] * clkk_fid[L] + dN1_X[L,ℓ]
+M = np.zeros((Lmax, 3000))
+for L in range(2, Lmax):
+    if fAL[L] > 0:
+        M[L, :] = -2 * dAL_dC_X[L, :3000] / fAL[L] * clkk_fid_trunc[L]
+    M[L, :] += dN1_X[L, :]
+```
+
+### Key Computation: Double Binning
+```python
+# Bin along L (lensing), then along ℓ (CMB)
+M_L_binned = lens_binmat @ M[:Lmax_lens, :]
+
+# Unit conversion: M is for Cℓ, ACT cov is Dℓ²
+ell_factor = ells * (ells + 1) / (2 * np.pi)
+M_L_binned /= ell_factor
+
+# ℓ binning: simple sum over bin support (DR6 SACC windows)
+for b in range(n_cmb_bins):
+    bin_support = window[b, :] > 1e-10
+    M_doubly[:, b] = np.sum(M_L_binned[:, ells[bin_support]])
+```
+
+### Key Computation: 9-Term Covariance Addition
+```python
+cov_add = np.zeros((n_lens_bins, n_lens_bins))
+cov_add += M_TT @ cov_TT_TT @ M_TT.T
+cov_add += M_TT @ cov_TT_TE @ M_TE.T + M_TE @ cov_TT_TE.T @ M_TT.T
+cov_add += M_TT @ cov_TT_EE @ M_EE.T + M_EE @ cov_TT_EE.T @ M_TT.T
+cov_add += M_TE @ cov_TE_TE @ M_TE.T
+cov_add += M_TE @ cov_TE_EE @ M_EE.T + M_EE @ cov_TE_EE.T @ M_TE.T
+cov_add += M_EE @ cov_EE_EE @ M_EE.T
+```
+
+### Results
+| Bin | L center | Diagonal Increase (%) |
+|-----|----------|----------------------|
+| 0 | 41 | 0.41% |
+| 1 | 61 | 0.53% |
+| 2 | 81 | 0.71% |
+| **5** | **123** | **2.35%** (max) |
+| 17 | 713 | 0.33% |
+
+### Production Files
+- `dr6plus_lenslike/data/v1.0/covmat_act_cmbmarg_analytic.txt` — 18×18 modified covariance
+- `dr6plus_lenslike/data/v1.0/covmat_act_cmbmarg_analytic_info.npy` — Metadata (original cov, cov_add, diag %)
+
+### Chain-Based Approach (Pending Comparison)
+
+**Reference chain**: `/project/rrg-rbond-ac/jiaqu/chains/act_dr6_2pt/lcdm/p-actlite_lcdm_camb/p-actlite_lcdm_camb`
+
+**Config file**: [p-actlite_lcdm_camb.updated.yaml](read in prior context)
+
+The chain-based approach computes:
+```python
+# For N samples from ACT+Planck posterior:
+for i in range(nsample):
+    # Sample cosmological params from chain
+    As, ns, tau, H0, omch2, ombh2 = chains[idx, :]
+
+    # Compute CAMB theory spectra at this point
+    ps_sample = make_spec_camb(As, ns, H0, ombh2, omch2, tau)
+
+    # Compute normalization response
+    delta_cl = ps_sample - ps_fiducial
+    norm_response = dAL_dC @ delta_cl
+    norm_factor = 2 * norm_response / AL_ref
+
+    # Bin and store
+    storage[i] = lens_binmat @ norm_factor * clkk_fid
+
+# Covariance of binned normalization
+cov_norm = np.cov(storage.T)
+```
+
+**Key difference**: Chain uses parameter-induced Cℓ covariance (from posterior sampling), not measured CMB covariance.
+
+### Next Session Tasks
+1. ~~Run chain-based mode: `python src/lensing_only_cov_marginalization.py --mode chain --nsample 1000`~~ DONE
+2. ~~Compare analytic vs chain-based diagonal increases~~ IN PROGRESS
+3. Investigate any systematic differences
+4. Document final recommended approach for production
+
+## 2026-02-16 Session 2: Sqrt Bug Fix & DR4 Chain Support
+
+### Critical Bug Fix: Variance vs Sigma
+
+**Bug**: All diagonal increase calculations were computing variance ratios instead of sigma ratios.
+
+**Before (WRONG)**:
+```python
+diag_increase_pct = (diag_modified - diag_orig) / diag_orig * 100
+```
+
+**After (CORRECT)**:
+```python
+sigma_orig = np.sqrt(diag_orig)
+sigma_modified = np.sqrt(diag_modified)
+diag_increase_pct = (sigma_modified - sigma_orig) / sigma_orig * 100
+```
+
+**Impact**: All reported percentages were ~2× too high. The "2.35%" becomes ~1.17%, the "7.62%" becomes ~3.7%.
+
+**Files fixed**: `src/lensing_only_cov_marginalization.py` (6 locations: lines 283, 544, 562, 631, 721, 754)
+
+### DR4+Planck Chain Support
+
+**Chain location**: `/project/rrg-rbond-ac/jiaqu/chains/dr4_planck_lcdm/CLASS2p8_ACTPol_lite_DR4_leakfix_yp2_baseLCDM_taup_planck2018_lowTT_plikHM_TT_lmax650_hip`
+
+**Issue**: DR4 chains use `sampler: minimize` in their YAML, which causes getdist to fail with:
+```
+ValueError: Unknown sampler type minimize
+```
+
+**Solution**: Added `_load_chains_raw()` function to load chain text files directly:
+```python
+def _load_chains_raw(chain_path, burn_in=0.3):
+    """Load chains directly from text files (for CLASS/DR4 format)."""
+    with open(f'{chain_path}.1.txt', 'r') as f:
+        header = f.readline().strip().replace('#', '').split()
+    # ... load all chain files, apply burn-in, extract parameters
+```
+
+### Parameter Constraint Comparison: DR6 vs DR4
+
+| Parameter | DR6 std | DR4 std | Ratio (DR6/DR4) |
+|-----------|---------|---------|-----------------|
+| logA | 0.0095 | 0.0132 | **0.72** |
+| omch2 | 0.00084 | 0.00153 | **0.55** |
+| H0 | 0.445 | 0.728 | **0.61** |
+| sigma8 | 0.0057 | 0.0085 | **0.67** |
+| tau | 0.0052 | 0.0108 | **0.48** |
+
+**Key finding**: DR6+Planck has significantly **tighter** constraints than DR4+Planck (most ratios < 0.7).
+
+**Implication**: Tighter constraints → smaller parameter-induced Cℓ variance → **smaller** Eq. 34 covariance addition. Need to verify with re-run using corrected sqrt formula.
+
+### Batch Script Updates
+
+**File**: [src/run_chain_cov.sh](../src/run_chain_cov.sh)
+
+Now accepts chain path as second argument:
+```bash
+# Usage:
+sbatch src/run_chain_cov.sh [nsample] [chain_path]
+
+# Examples:
+sbatch src/run_chain_cov.sh 1000  # Default DR6+Planck chain
+sbatch src/run_chain_cov.sh 1000 /path/to/dr4_chain  # DR4 chain
+```
+
+### Output Filename Collision Fix
+
+Different chains now save to different output files:
+
+| Chain | Output filename |
+|-------|-----------------|
+| DR6+Planck | `covmat_act_cmbmarg_chain_DR6.txt` |
+| DR4+Planck | `covmat_act_cmbmarg_chain_DR4.txt` |
+| Other | `covmat_act_cmbmarg_chain_PACT.txt` |
+
+Detection logic:
+```python
+if 'dr4' in args.chain_path.lower() or 'DR4' in args.chain_path:
+    chain_label = 'DR4'
+elif 'dr6' in args.chain_path.lower() or 'p-actlite' in args.chain_path:
+    chain_label = 'DR6'
+else:
+    chain_label = 'PACT'
+```
+
+### Chain Comparison Script
+
+**File**: [src/run_chain_comparison.sh](../src/run_chain_comparison.sh)
+
+Runs both DR6 and DR4 chains in a single job and generates comparison plot:
+```bash
+sbatch src/run_chain_comparison.sh [nsample]  # Default 500 samples each
+```
+
+**Output**:
+- `products/chain_comparison_results.npy` — Numerical results
+- `products/chain_comparison_dr6_vs_dr4.png` — Visualization
+
+### Next Steps
+
+1. Re-run chain-based computations with corrected sqrt formula
+2. Compare DR6 vs DR4 results with proper sigma ratios
+3. Verify that tighter DR6 constraints give smaller covariance increase (as expected)
+4. Document final production workflow
+
+## 2026-02-16 Session 3: Fiducial Cosmology Mismatch — CRITICAL ISSUE
+
+### Problem Discovery
+
+When comparing DR4 (DW chain) vs DR6 (p-actlite) CMB marginalization:
+- **Expected**: DR6 has tighter parameter constraints → smaller covariance addition
+- **Observed**: DR6 has **LARGER** covariance addition (~1.3× larger)
+
+### Root Cause Analysis
+
+The chain-based computation uses a **fixed fiducial cosmology** (cosmo2017, DR4-era):
+
+```python
+ps_fid = load_fiducial_spectra()  # cosmo2017_10K_acc3_lensedCls.dat
+norm = compute_norm_correction(ps_sample, ps_fid, M_matrix, AL_ref)
+```
+
+**Key insight**: The norm correction depends on `ps_sample - ps_fid`. If DR6's mean cosmology is offset from the DR4 fiducial:
+- DR6 samples are centered around a different point in parameter space
+- The CAMB-computed Cℓ spectra are systematically offset from ps_fid
+- This creates larger deviations even with tighter parameter spread
+
+### Mean Parameter Comparison
+
+| Parameter | DR4 mean | DR6 mean | Difference |
+|-----------|----------|----------|------------|
+| As | 2.19e-9 | 2.12e-9 | **-3%** |
+| τ (tau) | 0.072 | 0.060 | **-17%** |
+| H0 | 67.5 | 67.6 | +0.1% |
+| ns | 0.969 | 0.971 | +0.2% |
+
+**The 17% τ difference is critical** — τ strongly affects the overall amplitude via exp(-2τ).
+
+### Evidence: Norm Correction Variance
+
+Raw norm correction std (from stored samples):
+
+| Bin | L | DR4 std | DR6 std | Ratio |
+|-----|---|---------|---------|-------|
+| 4 | 123 | 1.11e-2 | 1.27e-2 | 0.87 |
+| 10 | 582 | 0.89e-2 | 1.24e-2 | 0.72 |
+
+DR6 has ~30-40% larger norm correction variance despite having tighter parameter constraints.
+
+### Two Components Affected by Fiducial
+
+1. **δCℓ computation**: `delta_cl = Cℓ_sample - Cℓ_fid`
+   - If Cℓ_fid doesn't match the chain's mean, there's a systematic offset
+   - **However**, covariance is shift-invariant: Var(X+c) = Var(X)
+   - So this alone shouldn't cause larger variance
+
+2. **M matrix computation**: `M = -2 * dAL/dCℓ / fAL * clkk_fid + dN1`
+   - All derivatives (dAL/dCℓ, dN1) are computed at the fiducial
+   - fAL and clkk_fid are at the fiducial
+   - **These would need to be recomputed for DR6 cosmology**
+
+### Likely Explanation: Nonlinear CAMB Response
+
+The mapping θ → Cℓ(θ) via CAMB is **nonlinear**. The Jacobian ∂Cℓ/∂θ varies with cosmology.
+
+If DR6's mean cosmology has **steeper derivatives** (larger ∂Cℓ/∂θ), then:
+- Same parameter spread δθ produces larger Cℓ spread
+- This could explain why tighter parameters still give larger Cℓ variance
+
+### Required Fix for DR6
+
+**Option A (Minimal)**: Use DR6 fiducial spectra for δCℓ computation
+- File: `p-actlite_lcdm_camb_bestfit_clkk.dat` exists
+- Need corresponding CMB Cℓ fiducial (TT, TE, EE)
+- M matrices remain at DR4 fiducial (linearization still valid if not too far)
+
+**Option B (Full)**: Recompute everything at DR6 fiducial
+- New M matrices (dAL/dCℓ, dN1 evaluated at DR6 cosmology)
+- New fiducial spectra (Cℓ_fid, clkk_fid, fAL)
+- More work but more accurate
+
+### Available DR6 Bestfit Files
+
+```
+/project/rrg-rbond-ac/jiaqu/chains/act_dr6_2pt/lcdm/
+├── p-actlite_lcdm_camb_bestfit_clkk.dat
+├── p_act_bestfit_clkk.dat
+├── p_act_lb_bestfit_clkk.dat
+└── planck_desi_lcdm_bestfit_clkk.dat
+```
+
+### Parameter Comparison: All 6 Sampled Parameters
+
+**Script**: [notebooks/compare_chain_contours.py](../notebooks/compare_chain_contours.py)
+**Output**: [products/chain_contours_all6_dr4_vs_dr6.png](../products/chain_contours_all6_dr4_vs_dr6.png)
+
+| Param | DR4 mean | DR4 std | DR6 mean | DR6 std | DR4/DR6 std |
+|-------|----------|---------|----------|---------|-------------|
+| As | 2.19e-9 | 5.3e-11 | 2.12e-9 | 2.8e-11 | **1.88** |
+| ns | 0.969 | 4.1e-3 | 0.971 | 3.7e-3 | 1.13 |
+| τ | 0.072 | 1.2e-2 | 0.060 | 6.2e-3 | **2.01** |
+| H0 | 67.5 | 0.57 | 67.6 | 0.51 | 1.12 |
+| ωch² | 0.120 | 1.3e-3 | 0.119 | 1.2e-3 | 1.07 |
+| ωbh² | 0.0224 | 1.3e-4 | 0.0225 | 1.1e-4 | 1.17 |
+
+**Key findings:**
+- DR6 is tighter on **ALL** parameters (all ratios > 1)
+- Biggest improvements: **As (1.9×)** and **τ (2.0×)**
+- τ shifted down by 17% (0.072 → 0.060)
+- As shifted down by 3%
+- τ-As anti-correlation visible (trade off via amplitude e^{-2τ}As)
+
+### Hypothesis: Nonlinear CAMB Jacobian
+
+The CMB marginalization covariance depends on:
+```
+Var(Cℓ) ≈ (∂Cℓ/∂θ) @ Var(θ) @ (∂Cℓ/∂θ).T
+```
+
+At DR6's cosmology (lower τ):
+- Cℓ ∝ e^{-2τ} → lower τ means larger Cℓ
+- ∂Cℓ/∂τ = -2 × Cℓ → larger Cℓ means larger |∂Cℓ/∂τ|
+
+So DR6's cosmology has a **steeper CAMB Jacobian** - the same parameter perturbation produces larger Cℓ perturbation. This could explain why tighter parameters still give larger Cℓ variance.
+
+**Important**: The M matrices (lensing response) don't need to change - they're ∂C^κκ/∂Cℓ, not the CAMB Jacobian ∂Cℓ/∂θ. The fiducial subtraction also doesn't matter since variance is shift-invariant.
+
+### Next Session TODO
+
+1. **Verify CAMB Jacobian hypothesis**: Compute ∂Cℓ/∂θ at both DR4 and DR6 mean cosmologies
+2. If confirmed, the larger DR6 covariance may be **physically correct** (not a bug)
+3. **Document** that CMB marginalization depends on cosmology, not just parameter constraints
+4. **Consider** whether to report DR6 result as-is or investigate further

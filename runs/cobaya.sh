@@ -12,6 +12,7 @@
 cd $SLURM_SUBMIT_DIR
 export DISABLE_MPI=false
 export PYTHONPATH="/home/jiaqu/dr6plus_lenslike:$PYTHONPATH"
+export PYTHONPATH=/home/jiaqu/cobaya:$PYTHONPATH
 
 module load StdEnv/2023
 module load aocl-lapack/5.1
@@ -26,5 +27,5 @@ export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 export COBAYA_USE_FILE_LOCKING=false
 
 
-srun -n 4 cobaya-run /home/jiaqu/dr6plus_lenslike/runs/act_day_bao_lcdm.yaml
+srun -n 4 cobaya-run /home/jiaqu/dr6plus_lenslike/runs/act_lcdm_analytic_marg.yaml
 

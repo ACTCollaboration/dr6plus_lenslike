@@ -1,0 +1,11 @@
+camb:
+  path: /home/jiaqu/CAMB_alens
+  stop_at_error: false
+  extra_args:
+    lmax: 4000
+    lens_margin: 1250
+    lens_potential_accuracy: 4
+    AccuracyBoost: 1
+    lSampleBoost: 1
+    lAccuracyBoost: 1
+    halofit_version: 'mead2016'

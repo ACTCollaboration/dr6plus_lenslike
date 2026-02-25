@@ -475,8 +475,12 @@ def load_data(variant, indep=False, ddir=None,
             d['dN1_kk'] = standardize(fAL_ls, n1mat, trim_lmax, extra_dims="yy")
 
             # Load pre-computed lens_only constant correction
+            # Pad to match standardized array size (trim_lmax + lbuffer where lbuffer=2)
             lens_only_data = np.load(f"{ddir}/lens_only_const.npy", allow_pickle=True).item()
-            d['lens_only_const'] = lens_only_data['eq35_const'][:trim_lmax+1]
+            lens_only_const_raw = lens_only_data['eq35_const']
+            d['lens_only_const'] = np.zeros(trim_lmax + 2)
+            end_idx = min(len(lens_only_const_raw), trim_lmax + 2)
+            d['lens_only_const'][:end_idx] = lens_only_const_raw[:end_idx]
 
     else:
         if v not in [None,'cinpaint','dr6plus_fiducial','day']: 

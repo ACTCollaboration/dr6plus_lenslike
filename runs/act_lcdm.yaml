@@ -6,4 +6,4 @@ params: !defaults [../base_config/lcdm_param]
 
 sampler: !defaults [../base_config/mcmc_sampler]
 
-output: /scratch/jiaqu/chains
+output: /scratch/jiaqu/chains/dr6_baseline_cmb_marg
