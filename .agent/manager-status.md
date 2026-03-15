@@ -676,6 +676,37 @@ Using Cov(Cℓ,Cℓ') = Cℓ×Cℓ'×(σAs/As)² (1% As uncertainty):
 
 **Next step**: Re-run chain-based covariance with corrected sqrt formula for both DR6 and DR4 using batch job
 
+## 2026-03-14: Self-Calibration End-to-End Test Configs — IN PROGRESS
+
+### Run configs created (committed, branch dev)
+- `runs/self_cal_test/evaluate_selfcal_false.yaml`
+- `runs/self_cal_test/evaluate_selfcal_true.yaml`
+- `runs/self_cal_test/mcmc_selfcal_false.yaml`
+- `runs/self_cal_test/mcmc_selfcal_true.yaml`
+- `runs/self_cal_test/cobaya.sh`
+
+All based on `pact_l_lcdm_4pt_calibration.yaml` with `act_dr6_lenslike` → `dr6plus_lenslike`.
+`Clens` is a fixed param (value: 1.0) in evaluate configs; sampled in mcmc configs.
+Selfcal params (`c_pa5a` etc.) fixed at 0.0 in evaluate_selfcal_true; sampled in mcmc_selfcal_true.
+
+### Source fixes applied but NOT YET COMMITTED
+1. **`dr6plus_lenslike.py` lines 699/706**: `do_norm_corr=` → `fid_norm=` (latent bug in `get_corrected_clkk` call)
+2. **`dr6plus_lenslike.py` `loglike()`**: added `Clens = params_values.get('Clens', 1.0); cl_kk = cl_kk * Clens`
+
+### Remaining blocker
+Cobaya cannot assign `Clens` and the 8 selfcal params to any component because `ACTDR6LensLike.get_allow_agnostic()` is not implemented (Cobaya shows `Input: []` for the likelihood).
+
+**Fix required**: add to `ACTDR6LensLike`:
+```python
+def get_allow_agnostic(self):
+    return True
+```
+
+### Next session
+1. Add `get_allow_agnostic()` to `ACTDR6LensLike`
+2. Run both evaluate configs — confirm identical loglikes (selfcal=false vs selfcal=true at params=0)
+3. Commit all source changes + run configs together
+
 ## Notes
 - Existing tests in `tests/test_dr6plus_lenslike.py` use mocked data
 - `lens_only=True` currently loads CMB-marginalized covariance and skips likelihood corrections

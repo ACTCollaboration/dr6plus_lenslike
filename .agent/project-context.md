@@ -3,6 +3,55 @@
 ## Overview
 Python package for ACT DR6+ CMB lensing likelihood computations. Used for cosmological parameter estimation with Cobaya.
 
+## Cobaya Environment (cluster: Narval/Cedar, account rrg-rbond-ac)
+
+### Module sequence (must load in this order)
+```bash
+module load StdEnv/2023
+module load aocl-lapack/5.1
+module load openblas
+module load gsl
+module load openmpi
+module load fftw
+module load cfitsio
+module load python
+source /home/jiaqu/.bashrc
+```
+
+### Environment variables
+```bash
+export PYTHONPATH=/home/jiaqu/cobaya:$PYTHONPATH
+export PYTHONPATH=/home/jiaqu/dr6plus_lenslike:$PYTHONPATH   # for dr6plus_lenslike
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+export COBAYA_USE_FILE_LOCKING=False
+export DISABLE_MPI=false
+```
+
+### Running Cobaya
+```bash
+srun -n 4 cobaya-run <yaml>        # MPI run (MCMC)
+cobaya-run <yaml>                  # single-process (evaluate)
+```
+
+### SLURM defaults (from `/home/jiaqu/mnu_de/runs/cobaya.sh`)
+- `--account=rrg-rbond-ac`
+- `--nodes=1`, `--ntasks-per-node=4`, `--cpus-per-task=20`
+- `--time=20:00:00` for production MCMC; shorter for test runs
+- `--output=/scratch/jiaqu/mpi_output_%j.txt`
+- `--mail-user=jq247@cam.ac.uk`
+
+### Lock-file cleanup (include before srun in cobaya.sh)
+```bash
+CHAIN_DIR="<output_dir>"
+if [[ -d "$CHAIN_DIR" ]]; then
+    find -L "$CHAIN_DIR" -name "*lock*" -delete 2>/dev/null
+fi
+```
+
+### Reference scripts
+- `/home/jiaqu/mnu_de/runs/cobaya.sh` — canonical template (20 h, lock cleanup, 4 MPI tasks)
+- `/home/jiaqu/dr6plus_lenslike/runs/cobaya.sh` — older version (1 h, no lock cleanup)
+
 ## Key Files
 - `dr6plus_lenslike/dr6plus_lenslike.py` — Main likelihood implementation
 - `tests/test_dr6plus_lenslike.py` — Unit tests (uses mocked data)

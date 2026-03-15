@@ -74,6 +74,15 @@ Read this file and `.agent/project-context.md` at the start of every Agent worke
   * Any tests or scripts run and their outcomes.
   * Any follow-up steps or uncertainties that the Agent Manager should review.
 
+7. Running Cobaya
+-----------------
+- Load modules and set PYTHONPATH before calling cobaya-run or building a cobaya.sh.
+  The canonical sequence is in `.agent/project-context.md` under "Cobaya Environment".
+- For SLURM scripts, use `/home/jiaqu/mnu_de/runs/cobaya.sh` as the template
+  (20 h walltime, lock-file cleanup before srun, 4 MPI tasks × 20 threads).
+- Always include the lock-file cleanup block in any new cobaya.sh you create.
+- For evaluate (single-point) runs, `cobaya-run <yaml>` without srun is fine.
+
 Follow these instructions on every worker session. If you need to revise this
 guidance, do so carefully and keep a log of why the change was made.
 

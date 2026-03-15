@@ -103,6 +103,7 @@ def pp_to_kk(clpp,ell):
 def get_corrected_clkk(data_dict,clkk,cltt,clte,clee,clbb,suff='',
                        fid_norm=True, do_N1kk_corr=True, do_N1cmb_corr=True,
                        act_calib=False, no_like_cmb_corrections=False):
+    do_norm_corr = fid_norm  # save bool before fid_norm is overwritten below
     if no_like_cmb_corrections:
         do_norm_corr = False
         do_N1cmb_corr = False
@@ -444,6 +445,8 @@ def load_data(variant, indep=False, ddir=None,
         ls = np.arange(binmat.shape[1])
         d['binmat_act'] = standardize(ls,binmat[start:end,:],trim_lmax,extra_dims="xy")
         d['bcents_act'] = bcents[start:end].copy()
+        if selfcal and 'response_cal_matrix' in d:
+            d['response_cal_matrix'] = d['response_cal_matrix'][start:end, :]
 
     if act_cmb_rescale:
         # load A_L_fid / A_L_ACT and standardize it
@@ -696,14 +699,14 @@ def generic_lnlike(data_dict,ell_kk,cl_kk,ell_cmb,cl_tt,cl_ee,cl_te,cl_bb,trim_l
     cinv = d['cinv']
     if d['only_spt']:
         clkk_act = get_corrected_clkk(data_dict,cl_kk,cl_tt,cl_te,cl_ee,cl_bb,
-                                  do_norm_corr=do_norm_corr,act_calib=act_calib,
+                                  fid_norm=do_norm_corr,act_calib=act_calib,
                                   no_like_cmb_corrections=no_actlike_cmb_corrections) if d['likelihood_corrections'] else cl_kk_spt
         bclkk = d['binmat_act'] @ clkk_act
 
     else:
         if d['likelihood_corrections']:
             clkk_act = get_corrected_clkk(data_dict,cl_kk,cl_tt,cl_te,cl_ee,cl_bb,
-                                      do_norm_corr=do_norm_corr,act_calib=act_calib,
+                                      fid_norm=do_norm_corr,act_calib=act_calib,
                                       no_like_cmb_corrections=no_actlike_cmb_corrections)
         elif d.get('analytic_marg', False):
             clkk_act = get_lens_only_corrected_clkk(data_dict, cl_kk)
@@ -811,6 +814,9 @@ class ACTDR6LensLike(InstallableLikelihood):
             
         return ret
 
+    def get_allow_agnostic(self):
+        return True
+
     @property
     def _selfcal_params(self):
         """Cobaya parameter declarations for the 8 calibration nuisances.
@@ -880,6 +886,9 @@ class ACTDR6LensLike(InstallableLikelihood):
             cl_kk = self.get_limber_clkk( **params_values)
         else:
             cl_kk = pp_to_kk(clpp,ell)
+
+        Clens = params_values.get('Clens', 1.0)
+        cl_kk = cl_kk * Clens
 
         if self.selfcal:
             # Retrieve calibration nuisance params from Cobaya sampler.
