@@ -968,11 +968,8 @@ A_lens bias = data/theory − 1 ≈ `frac_4pt − norm_corr` (MINUS sign — the
 - Script: `/home/jiaqu/DR6plus_lensing/notebooks/systematic_tests/selfcal_verification.py` (commit 6628829, branch preproc_test)
 
 ### Next step
-Implement self-calibration in `dr6plus_lenslike/dr6plus_lenslike.py`:
-- Add 8 calibration nuisance parameters to `ACTDR6LensLike`
-- In `generic_lnlike`: apply T²(δc) to theory clkk AND pass calibration-corrected CMB spectra to `get_corrected_clkk`
-- Load R and weights in `load_data()`
-- Add Cobaya parameter priors matching `act_dr6_mflike/params_systematics.yaml`
+Prompt B (self-calibration integration) is complete. All 20 tests pass.
+Next: end-to-end run with a Cobaya chain config enabling selfcal=True.
 
 ## Calibration Module — IMPLEMENTED (2026-03-14)
 
@@ -1003,3 +1000,47 @@ not loaded from file by this module.
 
 ### Tests
 `tests/test_calibration.py` — 6 tests (A–F), all passing.
+
+## Self-Calibration Integration — IMPLEMENTED (2026-03-14)
+
+### Overview
+Self-calibration (Prompt B) is integrated into `dr6plus_lenslike/dr6plus_lenslike.py`.
+Enabled with `selfcal=True` in `load_data()` / `ACTDR6LensLike.selfcal = True`.
+**Incompatible with `lens_only=True`** (raises ValueError): CMB spectra are required
+to propagate calibration deviations through the norm correction.
+
+### What `load_data()` loads when selfcal=True
+| Object | Key | Shape | Source |
+|--------|-----|-------|--------|
+| T coadding weights | `w_T` | (4, 5001) | `noise_{arr}_T_weights.txt` |
+| E coadding weights | `w_E` | (4, 5001) | `noise_{arr}_E_weights.txt` |
+| Response matrix R | `response_cal_matrix` | (18, 9) | `response_cal_matrix.txt` |
+
+### Two corrections in `generic_lnlike(delta_c, delta_p)`
+
+**1. Norm correction (CMB spectrum side)**
+When `delta_c` is not None, `compute_dCl_from_calibration()` computes
+`dC_TT/EE/TE/BB` and adds them to the theory spectra before calling
+`get_corrected_clkk()`.  Effective ell range = `min(w_T.shape[1], len(fiducial_cl_tt))`.
+
+**2. T² rescaling (4-point side)**
+After binning: `bclkk[:nbins_act] *= T**2` where
+`T = 1.0 + response_cal_matrix @ delta_c_full` and
+`delta_c_full = [0, c_pa5a, c_pa5b, c_pa6a, c_pa6b, p_pa5a, p_pa5b, p_pa6a, p_pa6b]`.
+
+### Nuisance parameters in `ACTDR6LensLike`
+Declared via `_selfcal_params` property (Cobaya format); retrieved in `loglike()`.
+
+| Name | Type | Prior | Source in params_systematics.yaml |
+|------|------|-------|-----------------------------------|
+| `c_pa5a` | gain | Gaussian(0, 0.0016) | cal_dr6_pa5_f090 |
+| `c_pa5b` | gain | Gaussian(0, 0.0020) | cal_dr6_pa5_f150 |
+| `c_pa6a` | gain | Gaussian(0, 0.0018) | cal_dr6_pa6_f090 |
+| `c_pa6b` | gain | Gaussian(0, 0.0024) | cal_dr6_pa6_f150 |
+| `p_pa5a` | pol eff | Uniform[-0.1, 0.1] | calE_dr6_pa5_f090 [0.9,1.1] |
+| `p_pa5b` | pol eff | Uniform[-0.1, 0.1] | calE_dr6_pa5_f150 [0.9,1.1] |
+| `p_pa6a` | pol eff | Uniform[-0.1, 0.1] | calE_dr6_pa6_f090 [0.9,1.1] |
+| `p_pa6b` | pol eff | Uniform[-0.1, 0.1] | calE_dr6_pa6_f150 [0.9,1.1] |
+
+### Tests
+`tests/test_dr6plus_lenslike.py` — 11 tests (pre-existing + A–E), all passing.

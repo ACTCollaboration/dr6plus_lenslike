@@ -282,7 +282,8 @@ def load_data(variant, indep=False, ddir=None,
               lens_only=False, analytic_marg=False,
               apply_hartlap=True,like_corrections=True,mock=False,
               nsims_act=796,nsims_planck=400,trim_lmax=2998,scale_cov=None,
-              version=None, act_cmb_rescale=False, act_calib=False,spt_start=0,spt_end=None):
+              version=None, act_cmb_rescale=False, act_calib=False,spt_start=0,spt_end=None,
+              selfcal=False):
     """
     Given a data directory path, this function loads into a dictionary
     the data products necessary for evaluating the DR6 lensing likelihood.
@@ -328,6 +329,17 @@ def load_data(variant, indep=False, ddir=None,
     if not(lens_only) and not(like_corrections):
         warnings.warn("Neither using CMB-marginalized covariance matrix nor including likelihood corrections. Effective covariance may be underestimated.")
 
+    # Self-calibration requires the full likelihood (lens_only=False) because
+    # it propagates calibration deviations through the CMB norm correction,
+    # which is only evaluated when CMB spectra are requested.
+    # In lens_only mode the CMB is analytically marginalised and no CMB
+    # theory spectra exist to calibrate.
+    if selfcal and lens_only:
+        raise ValueError(
+            "selfcal=True is incompatible with lens_only=True. "
+            "Self-calibration requires CMB spectra (full likelihood)."
+        )
+
     d['include_planck'] = include_planck
     d['include_spt'] = include_spt
     d['include_spt_no_planck'] = include_spt_no_planck
@@ -351,7 +363,25 @@ def load_data(variant, indep=False, ddir=None,
         d['fiducial_cl_bb'] = standardize(f_ls,f_bb,trim_lmax)
         d['fiducial_cl_kk'] = standardize(fd_ls,f_kk,trim_lmax)
 
-        
+    if selfcal:
+        from .calibration import load_calibration_weights
+        # Load per-ell noise-coadding weights for the 4 arrays (T and E).
+        # Stored as (4, 5001) arrays; row order: [pa5a, pa5b, pa6a, pa6b].
+        # Used in generic_lnlike() to compute the effective calibration-
+        # induced CMB spectrum change at each ell.
+        d['w_T'], d['w_E'] = load_calibration_weights(ddir)
+
+        # Load response matrix R (18×9).
+        # R[b, k] = d(binned_clkk_b) / d(delta_k), the sensitivity of
+        # lensing bin b to calibration parameter k.
+        # Param order: [c_dipole, c_pa5a, c_pa5b, c_pa6a, c_pa6b,
+        #               p_pa5a, p_pa5b, p_pa6a, p_pa6b]
+        d['response_cal_matrix'] = np.loadtxt(
+            os.path.join(ddir, 'response_cal_matrix.txt')
+        )
+
+    d['selfcal'] = selfcal
+
     # Return data bandpowers, covariance matrix and binning matrix
     if baseline:
         start = 2
@@ -597,7 +627,8 @@ def load_data(variant, indep=False, ddir=None,
     
 
 def generic_lnlike(data_dict,ell_kk,cl_kk,ell_cmb,cl_tt,cl_ee,cl_te,cl_bb,trim_lmax=2998,
-                   return_theory=False,do_norm_corr=True,act_calib=False,no_actlike_cmb_corrections=False):
+                   return_theory=False,do_norm_corr=True,act_calib=False,no_actlike_cmb_corrections=False,
+                   delta_c=None,delta_p=None):
 
     cl_kk_spt = standardize(ell_kk,cl_kk,3100)
     cl_kk = standardize(ell_kk,cl_kk,trim_lmax)
@@ -605,7 +636,62 @@ def generic_lnlike(data_dict,ell_kk,cl_kk,ell_cmb,cl_tt,cl_ee,cl_te,cl_bb,trim_l
     cl_ee = standardize(ell_cmb,cl_ee,trim_lmax)
     cl_bb = standardize(ell_cmb,cl_bb,trim_lmax)
     cl_te = standardize(ell_cmb,cl_te,trim_lmax)
-    
+
+    # ------------------------------------------------------------------
+    # Step 1 note (do_norm_corr / fid_norm inconsistency — do NOT refactor):
+    # get_corrected_clkk() has 'fid_norm=True' in its signature (which is
+    # immediately overwritten by fid_norm = data_dict['fAL...']).  The call
+    # below passes do_norm_corr=do_norm_corr, but 'do_norm_corr' is NOT an
+    # explicit parameter of get_corrected_clkk — it would raise TypeError if
+    # the likelihood_corrections=True path were exercised.  In practice all
+    # tests use likelihood_corrections=False so this latent bug is never hit.
+    # 'fid_norm=True' in the signature is the original do_norm_corr flag whose
+    # name was changed in the function body but not in the parameter list.
+    # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # Self-calibration: compute calibration-induced CMB spectrum changes.
+    # When delta_c/delta_p are provided, the CMB spectra passed to
+    # get_corrected_clkk() are shifted by dC so that the norm correction
+    # accounts for the calibration-induced change in the lensing estimator.
+    # ------------------------------------------------------------------
+    if delta_c is not None:
+        from .calibration import compute_dCl_from_calibration
+        # Retrieve fiducial Cl arrays (already standardized to trim_lmax+2).
+        # These are Cl (not Dl) in muK², as required by compute_dCl_from_calibration.
+        d = data_dict
+        C_TT_fid = d['fiducial_cl_tt']
+        C_EE_fid = d['fiducial_cl_ee']
+        C_TE_fid = d['fiducial_cl_te']
+        w_T = d['w_T']
+        w_E = d['w_E']
+        if delta_p is None:
+            delta_p = np.zeros(4)
+        # The calibration computation operates over ℓ = 0 … N_ell-1.
+        # w_T/w_E have shape (4, 5001), covering ℓ = 0 … 5000.
+        # The fiducial spectra were standardized to trim_lmax+2 (≤ 3000 in
+        # typical use), which may be shorter than w_T.shape[1] = 5001.
+        # Use the minimum so both arrays are consistent.
+        N_ell = min(w_T.shape[1], len(C_TT_fid))
+        dC_TT, dC_EE, dC_TE, dC_BB = compute_dCl_from_calibration(
+            delta_c, delta_p,
+            w_T[:, :N_ell], w_E[:, :N_ell],
+            C_TT_fid[:N_ell], C_EE_fid[:N_ell], C_TE_fid[:N_ell],
+        )
+        # Pad dC arrays to match the standardized spectrum length.
+        pad = len(C_TT_fid) - N_ell
+        if pad > 0:
+            dC_TT = np.append(dC_TT, np.zeros(pad))
+            dC_EE = np.append(dC_EE, np.zeros(pad))
+            dC_TE = np.append(dC_TE, np.zeros(pad))
+            dC_BB = np.append(dC_BB, np.zeros(pad))
+        # Shifted theory spectra: the lensing estimator sees cl_theory + dC
+        # instead of cl_theory, so the norm correction uses the shifted spectra.
+        cl_tt = cl_tt + dC_TT
+        cl_ee = cl_ee + dC_EE
+        cl_te = cl_te + dC_TE
+        cl_bb = cl_bb + dC_BB
+
     d = data_dict
     cinv = d['cinv']
     if d['only_spt']:
@@ -624,6 +710,22 @@ def generic_lnlike(data_dict,ell_kk,cl_kk,ell_cmb,cl_tt,cl_ee,cl_te,cl_bb,trim_l
         else:
             clkk_act = cl_kk
         bclkk = d['binmat_act'] @ clkk_act
+    if delta_c is not None:
+        # T²(δc) rescaling of the reconstructed 4-point clkk per bin.
+        # The lensing estimator is quadratic in the CMB maps, so a fractional
+        # gain change δ in the T map scales the reconstructed power by T² ≈ (1+δ)².
+        # The response matrix R (18×9) gives the linear sensitivity of each
+        # lensing bin to each calibration parameter.
+        # delta_c_full = [0, c_pa5a, c_pa5b, c_pa6a, c_pa6b,
+        #                    p_pa5a, p_pa5b, p_pa6a, p_pa6b]
+        delta_c_full = np.zeros(9)
+        delta_c_full[1:5] = delta_c   # gain deviations
+        delta_c_full[5:9] = delta_p   # pol-efficiency deviations
+        T = 1.0 + d['response_cal_matrix'] @ delta_c_full  # shape (18,)
+        # Apply only to the ACT bins (first nbins_act elements of bclkk).
+        nbins_act = d['binmat_act'].shape[0]
+        bclkk[:nbins_act] = bclkk[:nbins_act] * T**2
+
     if d['include_planck']:
         clkk_planck = get_corrected_clkk(data_dict,cl_kk,cl_tt,cl_te,cl_ee,cl_bb,'_planck') if d['likelihood_corrections'] else cl_kk
         bclkk = np.append(bclkk, d['binmat_planck'] @ clkk_planck)
@@ -672,6 +774,10 @@ class ACTDR6LensLike(InstallableLikelihood):
     act_cmb_rescale = False
     act_calib = False
 
+    # When True, marginalise over 8 gain/pol-efficiency nuisance parameters.
+    # Requires lens_only=False (CMB spectra must be sampled).
+    selfcal: bool = False
+
     spt_start=0
     spt_end=None
 
@@ -685,7 +791,8 @@ class ACTDR6LensLike(InstallableLikelihood):
                               like_corrections=not(self.no_like_corrections),apply_hartlap=self.apply_hartlap,
                               mock=self.mock,nsims_act=self.nsims_act,nsims_planck=self.nsims_planck,
                               trim_lmax=self.trim_lmax,scale_cov=self.scale_cov,version=self.version,
-                              act_cmb_rescale=self.act_cmb_rescale,act_calib=self.act_calib,spt_start=self.spt_start,spt_end=self.spt_end)
+                              act_cmb_rescale=self.act_cmb_rescale,act_calib=self.act_calib,spt_start=self.spt_start,spt_end=self.spt_end,
+                              selfcal=self.selfcal)
         
         if self.no_like_corrections:
             self.requested_cls = ["pp"]
@@ -703,6 +810,56 @@ class ACTDR6LensLike(InstallableLikelihood):
             ret.update(cobj)
             
         return ret
+
+    @property
+    def _selfcal_params(self):
+        """Cobaya parameter declarations for the 8 calibration nuisances.
+
+        Prior widths are taken from act_dr6_mflike/params_systematics.yaml
+        (cal_dr6_* for gains, calE_dr6_* for pol efficiencies).
+
+        Gains (c_pa5a, c_pa5b, c_pa6a, c_pa6b):
+          Gaussian priors centred at 0 (deviation from fiducial).
+          Scales from cal_dr6_pa5_f090/pa5_f150/pa6_f090/pa6_f150:
+          0.0016, 0.0020, 0.0018, 0.0024.
+
+        Pol efficiencies (p_pa5a, p_pa5b, p_pa6a, p_pa6b):
+          Uniform priors in [-0.1, 0.1] (deviation from 1.0).
+          Derived from calE_dr6_* uniform prior [0.9, 1.1].
+        """
+        return {
+            # Gain deviations: map-level calibration factors (affect T and E).
+            # Gaussian prior; scale from cal_dr6_pa5_f090 in params_systematics.yaml.
+            'c_pa5a': {'prior': {'dist': 'norm', 'loc': 0.0, 'scale': 0.0016},
+                       'ref': 0.0, 'proposal': 0.0008,
+                       'latex': r'\delta c_{\rm pa5a}'},
+            # Scale from cal_dr6_pa5_f150.
+            'c_pa5b': {'prior': {'dist': 'norm', 'loc': 0.0, 'scale': 0.0020},
+                       'ref': 0.0, 'proposal': 0.0010,
+                       'latex': r'\delta c_{\rm pa5b}'},
+            # Scale from cal_dr6_pa6_f090.
+            'c_pa6a': {'prior': {'dist': 'norm', 'loc': 0.0, 'scale': 0.0018},
+                       'ref': 0.0, 'proposal': 0.0009,
+                       'latex': r'\delta c_{\rm pa6a}'},
+            # Scale from cal_dr6_pa6_f150.
+            'c_pa6b': {'prior': {'dist': 'norm', 'loc': 0.0, 'scale': 0.0024},
+                       'ref': 0.0, 'proposal': 0.0012,
+                       'latex': r'\delta c_{\rm pa6b}'},
+            # Pol-efficiency deviations: E-only rescaling (affect TE and EE).
+            # Uniform prior [-0.1, 0.1]; from calE_dr6_* uniform [0.9, 1.1].
+            'p_pa5a': {'prior': {'min': -0.1, 'max': 0.1},
+                       'ref': 0.0, 'proposal': 0.02,
+                       'latex': r'\delta p_{\rm pa5a}'},
+            'p_pa5b': {'prior': {'min': -0.1, 'max': 0.1},
+                       'ref': 0.0, 'proposal': 0.02,
+                       'latex': r'\delta p_{\rm pa5b}'},
+            'p_pa6a': {'prior': {'min': -0.1, 'max': 0.1},
+                       'ref': 0.0, 'proposal': 0.02,
+                       'latex': r'\delta p_{\rm pa6a}'},
+            'p_pa6b': {'prior': {'min': -0.1, 'max': 0.1},
+                       'ref': 0.0, 'proposal': 0.02,
+                       'latex': r'\delta p_{\rm pa6b}'},
+        }
 
     def logp(self, **params_values):
         cl = self.provider.get_Cl(ell_factor=False, units='FIRASmuK2')
@@ -723,11 +880,30 @@ class ACTDR6LensLike(InstallableLikelihood):
             cl_kk = self.get_limber_clkk( **params_values)
         else:
             cl_kk = pp_to_kk(clpp,ell)
-            
-        
+
+        if self.selfcal:
+            # Retrieve calibration nuisance params from Cobaya sampler.
+            # These are deviations from the fiducial (0 = no miscalibration).
+            delta_c = np.array([
+                self.provider.get_param('c_pa5a'),
+                self.provider.get_param('c_pa5b'),
+                self.provider.get_param('c_pa6a'),
+                self.provider.get_param('c_pa6b'),
+            ])
+            delta_p = np.array([
+                self.provider.get_param('p_pa5a'),
+                self.provider.get_param('p_pa5b'),
+                self.provider.get_param('p_pa6a'),
+                self.provider.get_param('p_pa6b'),
+            ])
+        else:
+            delta_c = None
+            delta_p = None
+
         logp = generic_lnlike(self.data,ell,cl_kk,ell,cl['tt'],cl['ee'],cl['te'],cl['bb'],self.trim_lmax,
                               do_norm_corr=not(self.act_cmb_rescale),act_calib=self.act_calib,
-                              no_actlike_cmb_corrections=self.no_actlike_cmb_corrections)
+                              no_actlike_cmb_corrections=self.no_actlike_cmb_corrections,
+                              delta_c=delta_c,delta_p=delta_p)
         self.log.debug(
             f"ACT-DR6-lensing-like lnLike value = {logp} (chisquare = {-2 * logp})")
         return logp
