@@ -930,3 +930,76 @@ So DR6's cosmology has a **steeper CAMB Jacobian** - the same parameter perturba
 2. If confirmed, the larger DR6 covariance may be **physically correct** (not a bug)
 3. **Document** that CMB marginalization depends on cosmology, not just parameter constraints
 4. **Consider** whether to report DR6 result as-is or investigate further
+
+## Self-Calibration — VERIFIED (2026-03-14)
+
+### What it is
+Marginalizing 8 calibration nuisance parameters (4 gain + 4 pol efficiency for pa5a/b, pa6a/b)
+over the DR6+ lensing likelihood. Calibration affects lensing in two partially-cancelling ways:
+1. **T²(δc) term**: response matrix R (18×9) scales theory clkk
+2. **Norm correction**: same calibration-induced dC_TT/EE/TE/BB feeds into get_corrected_clkk
+
+### Key products
+| Product | Path |
+|---------|------|
+| Response matrix R (18×9) | `/home/jiaqu/act_dr6_lenslike/act_dr6_lenslike/data/v1.2/response_cal_matrix.txt` |
+| Calibration samples (100×4) | `/home/jiaqu/DR6plus_lensing/preprocessing/systematic_tests/calibration_samples.txt` |
+| Coadding weights (5001,) | `/home/jiaqu/DR6plus_lensing/preprocessing/output/21122025_nighttime/stage_compute_weights/noise_{pa5a,pa5b,pa6a,pa6b}_{T,E}_weights.txt` |
+
+### Calibration model (verbatim from act_dr6_mflike/_calibrate_spectra)
+Array naming: pa5a=pa5_f090, pa5b=pa5_f150, pa6a=pa6_f090, pa6b=pa6_f150. Gain c_a is map-level (affects T and E equally); pol efficiency p_a is E-only.
+
+CMB spectrum changes (Cℓ units, linearized):
+```python
+eff_T = (w_T * delta_c[:, None]).sum(axis=0) / w_T.sum(axis=0)
+eff_E = (w_E * (delta_c + delta_p)[:, None]).sum(axis=0) / w_E.sum(axis=0)
+dC_TT = 2 * eff_T * C_TT_fid_cl
+dC_EE = 2 * eff_E * C_EE_fid_cl
+dC_TE = (eff_T + eff_E) * C_TE_fid_cl
+```
+
+### Sign convention (critical)
+`norm_corr > 0` for positive calibration because `dAL_dC < 0` (more CMB → smaller AL).
+A_lens bias = data/theory − 1 ≈ `frac_4pt − norm_corr` (MINUS sign — they partially cancel).
+
+### Verification results
+- Cancellation fraction: 56.5% (green std = 0.57× red std)
+- A_lens bias: T²-only = 0.0039, self-cal = 0.0017 (~2.3× improvement)
+- Script: `/home/jiaqu/DR6plus_lensing/notebooks/systematic_tests/selfcal_verification.py` (commit 6628829, branch preproc_test)
+
+### Next step
+Implement self-calibration in `dr6plus_lenslike/dr6plus_lenslike.py`:
+- Add 8 calibration nuisance parameters to `ACTDR6LensLike`
+- In `generic_lnlike`: apply T²(δc) to theory clkk AND pass calibration-corrected CMB spectra to `get_corrected_clkk`
+- Load R and weights in `load_data()`
+- Add Cobaya parameter priors matching `act_dr6_mflike/params_systematics.yaml`
+
+## Calibration Module — IMPLEMENTED (2026-03-14)
+
+### File
+`dr6plus_lenslike/calibration.py` — standalone module, primary reference document
+for calibration physics.
+
+### Data files in `dr6plus_lenslike/data/v1.0/`
+| File | Shape | Purpose |
+|------|-------|---------|
+| `response_cal_matrix.txt` | 18×9 | T²(δc) scaling of theory clkk (Prompt B) |
+| `noise_pa5a_T_weights.txt` … `noise_pa6b_E_weights.txt` | 5001 values each | Per-ℓ noise-coadding weights for T and E maps |
+
+### Functions
+```python
+load_calibration_weights(data_dir)
+    → w_T, w_E  each shape (4, 5001), row order [pa5a, pa5b, pa6a, pa6b]
+
+compute_dCl_from_calibration(delta_c, delta_p, w_T, w_E,
+                              C_TT_fid, C_EE_fid, C_TE_fid)
+    → dC_TT, dC_EE, dC_TE, dC_BB  each shape (N_ell,), Cℓ units
+```
+
+### MCMC interface
+`delta_c` (4,) gain deviations and `delta_p` (4,) pol-efficiency deviations
+are MCMC nuisance parameters supplied by the Cobaya sampler at each step;
+not loaded from file by this module.
+
+### Tests
+`tests/test_calibration.py` — 6 tests (A–F), all passing.
