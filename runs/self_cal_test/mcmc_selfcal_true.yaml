@@ -341,16 +341,6 @@ prior:
   bandint_shift_dr6_pa6_f150_prior: 'lambda bandint_shift_dr6_pa6_f150: stats.norm.logpdf(bandint_shift_dr6_pa6_f150,
     loc=0.0, scale=1.1)'
 params:
-  Clens:
-    latex: A^{4pt}
-    prior:
-      max: 10.0
-      min: 0.01
-    proposal: 0.02
-    ref:
-      dist: norm
-      loc: 1.0
-      scale: 0.1
   ombh2:
     prior:
       min: 0.017
