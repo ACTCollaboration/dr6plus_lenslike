@@ -495,6 +495,30 @@ class TestDR6PlusLensLike(unittest.TestCase):
         with self.assertRaises(ValueError):
             like.initialize()
 
+    def test_fg_K_allows_fiducial_variants(self):
+        """Test K: fg_marg=True with dr6plus_fiducial_baseline does not trip the guard.
+
+        Monkey-patches load_data to a sentinel so only the initialize-time
+        variant guard is exercised (the mock data dir does not provide
+        clkk_act_fiducial.txt, which is the next file load_data would need).
+        """
+        import dr6plus_lenslike.dr6plus_lenslike as m
+        like = ACTDR6LensLike()
+        like.fg_marg = True
+        like.variant = 'dr6plus_fiducial_baseline'
+
+        sentinel = RuntimeError("load_data reached")
+        def fake_load_data(*a, **k):
+            raise sentinel
+        orig = m.load_data
+        m.load_data = fake_load_data
+        try:
+            with self.assertRaises(RuntimeError) as ctx:
+                like.initialize()
+            self.assertIs(ctx.exception, sentinel)
+        finally:
+            m.load_data = orig
+
     def test_fg_G_no_template_key_when_false(self):
         """Test G: fg_marg=False (default) does not populate fg_template_bandpower."""
         d = load_data(

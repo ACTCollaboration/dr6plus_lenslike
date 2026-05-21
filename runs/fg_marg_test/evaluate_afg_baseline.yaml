@@ -1,0 +1,17 @@
+theory: !defaults [../../base_config/class_sz]
+
+likelihood:
+  dr6plus_lenslike.ACTDR6LensLike:
+    variant: dr6plus_fiducial_baseline
+    lens_only: true
+    trim_lmax: 2998
+    apply_hartlap: true
+    no_like_corrections: true
+    fg_marg: true
+
+params: !defaults [../../base_config/lcdm_param, _afg_params]
+
+sampler:
+  evaluate:
+
+output: /scratch/jiaqu/chains/fg_marg_test/evaluate_afg_baseline

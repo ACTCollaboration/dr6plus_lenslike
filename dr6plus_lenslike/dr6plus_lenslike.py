@@ -839,10 +839,14 @@ class ACTDR6LensLike(InstallableLikelihood):
         if self.lens_only: self.no_like_corrections = True
         if self.analytic_marg and not self.lens_only:
             raise ValueError("analytic_marg=True requires lens_only=True")
-        if self.fg_marg and self.variant not in ('act_baseline', 'act_extended'):
+        _fg_allowed = (
+            'act_baseline', 'act_extended',
+            'dr6plus_fiducial_baseline', 'dr6plus_fiducial_extended',
+        )
+        if self.fg_marg and self.variant not in _fg_allowed:
             raise ValueError(
-                f"fg_marg=True only supported for variant in "
-                f"('act_baseline', 'act_extended'); got '{self.variant}'."
+                f"fg_marg=True only supported for variant in {_fg_allowed}; "
+                f"got '{self.variant}'."
             )
         if self.lmax<self.trim_lmax: raise ValueError(f"An lmax of at least {self.trim_lmax} is required.")
         self.data = load_data(variant=self.variant,indep=self.indep,lens_only=self.lens_only,
