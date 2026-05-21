@@ -284,7 +284,8 @@ def load_data(variant, indep=False, ddir=None,
               apply_hartlap=True,like_corrections=True,mock=False,
               nsims_act=796,nsims_planck=400,trim_lmax=2998,scale_cov=None,
               version=None, act_cmb_rescale=False, act_calib=False,spt_start=0,spt_end=None,
-              selfcal=False):
+              selfcal=False, n_drop_high=None, cov_file=None,
+              fg_marg=False, fg_template_file=None, fg_template_index=9):
     """
     Given a data directory path, this function loads into a dictionary
     the data products necessary for evaluating the DR6 lensing likelihood.
@@ -390,6 +391,8 @@ def load_data(variant, indep=False, ddir=None,
     else:
         start = 2
         end = -3
+    if n_drop_high is not None:
+        end = -int(n_drop_high) if n_drop_high > 0 else None
 
     if v is None:
         y = np.loadtxt(f'{ddir}/clkk_bandpowers_act.txt')
@@ -447,6 +450,21 @@ def load_data(variant, indep=False, ddir=None,
         d['bcents_act'] = bcents[start:end].copy()
         if selfcal and 'response_cal_matrix' in d:
             d['response_cal_matrix'] = d['response_cal_matrix'][start:end, :]
+
+        # Foreground bias marginalization: bin the fine-L template once and cache
+        # the bandpower-space vector. A_fg (sampled by Cobaya) multiplies this
+        # vector in generic_lnlike. Only loaded for the ACT-only baseline/extended
+        # variants, since the template was generated for that configuration.
+        if fg_marg:
+            tpath = fg_template_file or f'{ddir}/fg_template_act_baseline.npy'
+            fg_arr = np.load(tpath)
+            if fg_arr.ndim != 2 or fg_arr.shape[0] < fg_template_index + 1:
+                raise ValueError(
+                    f"fg template at {tpath} has unexpected shape {fg_arr.shape}"
+                )
+            template_full = fg_arr[fg_template_index]
+            template_trim = template_full[:d['binmat_act'].shape[1]]
+            d['fg_template_bandpower'] = d['binmat_act'] @ template_trim
 
     if act_cmb_rescale:
         # load A_L_fid / A_L_ACT and standardize it
@@ -536,6 +554,11 @@ def load_data(variant, indep=False, ddir=None,
                 fcov = np.loadtxt(f'{ddir}/cov_clkk_daytime_daylens.txt')
             else:
                 fcov = np.loadtxt(f'{ddir}/covmat_act.txt')
+
+    if cov_file is not None:
+        cov_path = cov_file if os.path.isabs(cov_file) else os.path.join(ddir, cov_file)
+        warnings.warn(f"Overriding default covariance with {cov_path}")
+        fcov = np.load(cov_path) if cov_path.endswith('.npy') else np.loadtxt(cov_path)
 
     d['full_act_cov'] = fcov.copy()
 
@@ -631,7 +654,7 @@ def load_data(variant, indep=False, ddir=None,
 
 def generic_lnlike(data_dict,ell_kk,cl_kk,ell_cmb,cl_tt,cl_ee,cl_te,cl_bb,trim_lmax=2998,
                    return_theory=False,do_norm_corr=True,act_calib=False,no_actlike_cmb_corrections=False,
-                   delta_c=None,delta_p=None):
+                   delta_c=None,delta_p=None,A_fg=0.0):
 
     cl_kk_spt = standardize(ell_kk,cl_kk,3100)
     cl_kk = standardize(ell_kk,cl_kk,trim_lmax)
@@ -729,6 +752,12 @@ def generic_lnlike(data_dict,ell_kk,cl_kk,ell_cmb,cl_tt,cl_ee,cl_te,cl_bb,trim_l
         nbins_act = d['binmat_act'].shape[0]
         bclkk[:nbins_act] = bclkk[:nbins_act] * T**2
 
+    if 'fg_template_bandpower' in d:
+        # Additive foreground bias on the ACT bandpowers: A_fg defaults to 0
+        # so the term vanishes unless the sampler supplies it.
+        nbins_act_local = d['binmat_act'].shape[0]
+        bclkk[:nbins_act_local] = bclkk[:nbins_act_local] + A_fg * d['fg_template_bandpower']
+
     if d['include_planck']:
         clkk_planck = get_corrected_clkk(data_dict,cl_kk,cl_tt,cl_te,cl_ee,cl_bb,'_planck') if d['likelihood_corrections'] else cl_kk
         bclkk = np.append(bclkk, d['binmat_planck'] @ clkk_planck)
@@ -781,13 +810,35 @@ class ACTDR6LensLike(InstallableLikelihood):
     # Requires lens_only=False (CMB spectra must be sampled).
     selfcal: bool = False
 
+    # When True, marginalise over a single foreground bias amplitude A_fg
+    # (MacCrann et al. 2023). Only valid for variant in {act_baseline, act_extended}.
+    fg_marg: bool = False
+    # Path to the foreground bias template .npy. None → canonical copy in
+    # data/v1.0/fg_template_act_baseline.npy.
+    fg_template_file: str = None
+    # Row index into the (10, 4501) Agora template. Default 9 = total_mv_prh
+    # (bias-hardened MV total, matches DR6 baseline profile hardening).
+    fg_template_index: int = 9
+
     spt_start=0
     spt_end=None
+
+    # Drop n_drop_high trailing bins from the ACT bandpowers/covmat slice.
+    # None preserves the legacy defaults (6 for baseline variants, 3 for extended).
+    n_drop_high = None
+    # Optional override for the ACT covariance matrix file. Absolute path, or
+    # filename relative to the data directory. None uses the variant default.
+    cov_file = None
 
     def initialize(self):
         if self.lens_only: self.no_like_corrections = True
         if self.analytic_marg and not self.lens_only:
             raise ValueError("analytic_marg=True requires lens_only=True")
+        if self.fg_marg and self.variant not in ('act_baseline', 'act_extended'):
+            raise ValueError(
+                f"fg_marg=True only supported for variant in "
+                f"('act_baseline', 'act_extended'); got '{self.variant}'."
+            )
         if self.lmax<self.trim_lmax: raise ValueError(f"An lmax of at least {self.trim_lmax} is required.")
         self.data = load_data(variant=self.variant,indep=self.indep,lens_only=self.lens_only,
                               analytic_marg=self.analytic_marg,
@@ -795,7 +846,9 @@ class ACTDR6LensLike(InstallableLikelihood):
                               mock=self.mock,nsims_act=self.nsims_act,nsims_planck=self.nsims_planck,
                               trim_lmax=self.trim_lmax,scale_cov=self.scale_cov,version=self.version,
                               act_cmb_rescale=self.act_cmb_rescale,act_calib=self.act_calib,spt_start=self.spt_start,spt_end=self.spt_end,
-                              selfcal=self.selfcal)
+                              selfcal=self.selfcal,n_drop_high=self.n_drop_high,cov_file=self.cov_file,
+                              fg_marg=self.fg_marg,fg_template_file=self.fg_template_file,
+                              fg_template_index=self.fg_template_index)
         
         if self.no_like_corrections:
             self.requested_cls = ["pp"]
@@ -815,7 +868,11 @@ class ACTDR6LensLike(InstallableLikelihood):
         return ret
 
     def get_allow_agnostic(self):
-        return True
+        # Only claim unclaimed params when selfcal nuisances (Clens, c_pa*, p_pa*)
+        # or foreground marginalization (A_fg) need a home. Otherwise leave
+        # cosmology routing to the theory (camb/class_sz), since class_sz is
+        # itself agnostic and two agnostic components collide.
+        return bool(self.selfcal or self.fg_marg)
 
     @property
     def _selfcal_params(self):
@@ -890,6 +947,8 @@ class ACTDR6LensLike(InstallableLikelihood):
         Clens = params_values.get('Clens', 1.0)
         cl_kk = cl_kk * Clens
 
+        A_fg = params_values.get('A_fg', 0.0)
+
         if self.selfcal:
             # Retrieve calibration nuisance params from Cobaya sampler.
             # These are deviations from the fiducial (0 = no miscalibration).
@@ -912,7 +971,7 @@ class ACTDR6LensLike(InstallableLikelihood):
         logp = generic_lnlike(self.data,ell,cl_kk,ell,cl['tt'],cl['ee'],cl['te'],cl['bb'],self.trim_lmax,
                               do_norm_corr=not(self.act_cmb_rescale),act_calib=self.act_calib,
                               no_actlike_cmb_corrections=self.no_actlike_cmb_corrections,
-                              delta_c=delta_c,delta_p=delta_p)
+                              delta_c=delta_c,delta_p=delta_p,A_fg=A_fg)
         self.log.debug(
             f"ACT-DR6-lensing-like lnLike value = {logp} (chisquare = {-2 * logp})")
         return logp

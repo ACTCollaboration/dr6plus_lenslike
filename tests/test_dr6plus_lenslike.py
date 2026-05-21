@@ -131,6 +131,13 @@ class TestDR6PlusLensLike(unittest.TestCase):
         response = rng.standard_normal((18, 9)) * 0.01
         np.savetxt(os.path.join(cls.data_dir, "response_cal_matrix.txt"), response)
 
+        # Foreground bias template: shape (10, 3000) — deterministic small values.
+        # Row 9 (= total_mv_prh) is the default selected by fg_template_index=9.
+        fg_template = np.tile(
+            np.linspace(1e-9, 1e-12, 3000), (10, 1)
+        ) * np.arange(1, 11).reshape(-1, 1)  # row-dependent scaling for shape checks
+        np.save(os.path.join(cls.data_dir, "fg_template_act_baseline.npy"), fg_template)
+
     def setUp(self):
         """Set up for each test"""
         # Mock the data directory location
@@ -474,6 +481,132 @@ class TestDR6PlusLensLike(unittest.TestCase):
         self.assertGreater(
             abs(lnlike_no_cal - lnlike_with_cal), 1e-6,
             msg="Nonzero calibration should shift lnlike by more than 1e-6"
+        )
+
+    # ------------------------------------------------------------------
+    # Foreground bias marginalization (A_fg) tests
+    # ------------------------------------------------------------------
+
+    def test_fg_F_raises_on_non_baseline_variant(self):
+        """Test F: fg_marg=True with non-baseline variant raises ValueError."""
+        like = ACTDR6LensLike()
+        like.fg_marg = True
+        like.variant = 'actplanck_baseline'
+        with self.assertRaises(ValueError):
+            like.initialize()
+
+    def test_fg_G_no_template_key_when_false(self):
+        """Test G: fg_marg=False (default) does not populate fg_template_bandpower."""
+        d = load_data(
+            variant='act_baseline',
+            ddir=self.data_dir,
+            lens_only=True,
+            apply_hartlap=False,
+            like_corrections=False,
+            fg_marg=False,
+        )
+        self.assertNotIn('fg_template_bandpower', d)
+
+    def test_fg_H_loads_template_with_correct_shape(self):
+        """Test H: fg_marg=True caches a bandpower-space template of length nbins_act."""
+        d = load_data(
+            variant='act_baseline',
+            ddir=self.data_dir,
+            lens_only=True,
+            apply_hartlap=False,
+            like_corrections=False,
+            fg_marg=True,
+        )
+        self.assertIn('fg_template_bandpower', d)
+        nbins_act = d['binmat_act'].shape[0]
+        self.assertEqual(d['fg_template_bandpower'].shape, (nbins_act,))
+
+    def test_fg_I_zero_A_fg_unchanged_lnlike(self):
+        """Test I: A_fg=0 leaves lnlike identical to a data_dict without the template."""
+        d_no_fg = load_data(
+            variant='act_baseline',
+            ddir=self.data_dir,
+            lens_only=True,
+            apply_hartlap=False,
+            like_corrections=False,
+            fg_marg=False,
+        )
+        d_fg = load_data(
+            variant='act_baseline',
+            ddir=self.data_dir,
+            lens_only=True,
+            apply_hartlap=False,
+            like_corrections=False,
+            fg_marg=True,
+        )
+
+        # ell must span at least 3102 for the SPT standardize call in generic_lnlike.
+        ell = np.arange(2, 3102)
+        np.random.seed(789)
+        cl_kk = np.random.random(len(ell)) * 1e-7
+        cl_tt = np.random.random(len(ell)) * 1e-10
+        cl_ee = np.random.random(len(ell)) * 1e-12
+        cl_te = np.random.random(len(ell)) * 1e-11
+        cl_bb = np.random.random(len(ell)) * 1e-14
+
+        lnlike_no_fg = generic_lnlike(
+            d_no_fg, ell, cl_kk, ell, cl_tt, cl_ee, cl_te, cl_bb,
+            trim_lmax=2998, A_fg=0.0,
+        )
+        lnlike_zero_fg = generic_lnlike(
+            d_fg, ell, cl_kk, ell, cl_tt, cl_ee, cl_te, cl_bb,
+            trim_lmax=2998, A_fg=0.0,
+        )
+
+        self.assertAlmostEqual(lnlike_no_fg, lnlike_zero_fg, delta=1e-10,
+                               msg="A_fg=0 should leave lnlike unchanged")
+
+    def test_fg_J_nonzero_A_fg_changes_lnlike(self):
+        """Test J: A_fg=1 shifts lnlike by the closed-form Gaussian amount.
+
+        Closed form (ACT-only, no Planck): for residual r = data - bclkk(A_fg=0)
+        and template t, lnlike(A_fg) - lnlike(0) = A_fg * r·Σ⁻¹·t
+                                                    - 0.5 * A_fg² * t·Σ⁻¹·t.
+        """
+        d = load_data(
+            variant='act_baseline',
+            ddir=self.data_dir,
+            lens_only=True,
+            apply_hartlap=False,
+            like_corrections=False,
+            fg_marg=True,
+        )
+
+        ell = np.arange(2, 3102)
+        np.random.seed(789)
+        cl_kk = np.random.random(len(ell)) * 1e-7
+        cl_tt = np.random.random(len(ell)) * 1e-10
+        cl_ee = np.random.random(len(ell)) * 1e-12
+        cl_te = np.random.random(len(ell)) * 1e-11
+        cl_bb = np.random.random(len(ell)) * 1e-14
+
+        lnlike0, bclkk0 = generic_lnlike(
+            d, ell, cl_kk, ell, cl_tt, cl_ee, cl_te, cl_bb,
+            trim_lmax=2998, A_fg=0.0, return_theory=True,
+        )
+        lnlike1 = generic_lnlike(
+            d, ell, cl_kk, ell, cl_tt, cl_ee, cl_te, cl_bb,
+            trim_lmax=2998, A_fg=1.0,
+        )
+
+        residual = d['data_binned_clkk'] - bclkk0
+        template = d['fg_template_bandpower']
+        cinv = d['cinv']
+        expected_delta = residual @ cinv @ template - 0.5 * template @ cinv @ template
+
+        self.assertGreater(
+            abs(lnlike1 - lnlike0), 1e-12,
+            msg="A_fg=1 should shift lnlike"
+        )
+        self.assertAlmostEqual(
+            lnlike1 - lnlike0, expected_delta,
+            delta=1e-8 * max(abs(expected_delta), 1.0),
+            msg="lnlike shift must match closed-form Gaussian expression",
         )
 
 
