@@ -462,8 +462,13 @@ def load_data(variant, indep=False, ddir=None,
                 raise ValueError(
                     f"fg template at {tpath} has unexpected shape {fg_arr.shape}"
                 )
-            template_full = fg_arr[fg_template_index]
-            template_trim = template_full[:d['binmat_act'].shape[1]]
+            # The Agora template is stored as ΔC_L^{φφ}; the likelihood data
+            # vector is C_L^{κκ}. Apply pp_to_kk before binning so the template
+            # is in the same units as bclkk.
+            template_pp = fg_arr[fg_template_index]
+            L_template = np.arange(template_pp.size)
+            template_kk = pp_to_kk(template_pp, L_template)
+            template_trim = template_kk[:d['binmat_act'].shape[1]]
             d['fg_template_bandpower'] = d['binmat_act'] @ template_trim
 
     if act_cmb_rescale:
