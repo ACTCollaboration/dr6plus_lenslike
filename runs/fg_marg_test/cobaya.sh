@@ -41,4 +41,4 @@ if [[ -n "$OUT_DIR" && -d "$OUT_DIR" ]]; then
     find -L "$OUT_DIR" -name "*lock*" -delete 2>/dev/null
 fi
 
-srun -n 4 cobaya-run "$YAML"
+srun -n 4 cobaya-run --force "$YAML"
