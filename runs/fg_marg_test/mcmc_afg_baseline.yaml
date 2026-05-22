@@ -7,6 +7,7 @@ likelihood:
     trim_lmax: 2998
     apply_hartlap: true
     no_like_corrections: true
+    cov_file: /home/jiaqu/dr6plus_lenslike/products/mock_covmat.npy
     fg_marg: true
     # Declare A_fg here (NOT at the top level) so Cobaya routes it to this
     # likelihood. Otherwise class_sz (agnostic) and us would collide.

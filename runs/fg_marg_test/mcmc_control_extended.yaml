@@ -7,6 +7,7 @@ likelihood:
     trim_lmax: 2998
     apply_hartlap: true
     no_like_corrections: true
+    cov_file: /home/jiaqu/dr6plus_lenslike/products/mock_covmat.npy
 
 params: !defaults [../../base_config/lcdm_param]
 
