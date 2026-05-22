@@ -8,8 +8,16 @@ likelihood:
     apply_hartlap: true
     no_like_corrections: true
     fg_marg: true
+    params:
+      A_fg:
+        prior:
+          min: -2.0
+          max: 2.0
+        ref: 0.0
+        proposal: 0.5
+        latex: A_\mathrm{fg}
 
-params: !defaults [../../base_config/lcdm_param, _afg_params]
+params: !defaults [../../base_config/lcdm_param]
 
 sampler:
   evaluate:

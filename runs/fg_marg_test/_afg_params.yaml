@@ -1,7 +1,0 @@
-A_fg:
-  prior:
-    min: -2.0
-    max: 2.0
-  ref: 0.0
-  proposal: 0.5
-  latex: A_\mathrm{fg}

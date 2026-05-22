@@ -878,10 +878,11 @@ class ACTDR6LensLike(InstallableLikelihood):
 
     def get_allow_agnostic(self):
         # Only claim unclaimed params when selfcal nuisances (Clens, c_pa*, p_pa*)
-        # or foreground marginalization (A_fg) need a home. Otherwise leave
-        # cosmology routing to the theory (camb/class_sz), since class_sz is
-        # itself agnostic and two agnostic components collide.
-        return bool(self.selfcal or self.fg_marg)
+        # need a home. Otherwise leave cosmology routing to the theory
+        # (camb/class_sz), since class_sz is itself agnostic and two agnostic
+        # components collide. For fg_marg, A_fg must be declared under this
+        # likelihood's `params:` block in the YAML so Cobaya routes it here.
+        return bool(self.selfcal)
 
     @property
     def _selfcal_params(self):

@@ -8,10 +8,20 @@ likelihood:
     apply_hartlap: true
     no_like_corrections: true
     fg_marg: true
+    # Declare A_fg here (NOT at the top level) so Cobaya routes it to this
+    # likelihood. Otherwise class_sz (agnostic) and us would collide.
+    # Blind-mode prior: U[-2, 2], symmetric so the mode is interior.
+    # Switch to U[0, 2] for production runs on real data (MacCrann 2023).
+    params:
+      A_fg:
+        prior:
+          min: -2.0
+          max: 2.0
+        ref: 0.0
+        proposal: 0.5
+        latex: A_\mathrm{fg}
 
-# Blind-mode prior on A_fg: U[-2, 2], symmetric so the mode is interior.
-# Switch to U[0, 2] for production runs on real data (MacCrann 2023).
-params: !defaults [../../base_config/lcdm_param, _afg_params]
+params: !defaults [../../base_config/lcdm_param]
 
 sampler: !defaults [../../base_config/mcmc_sampler]
 
