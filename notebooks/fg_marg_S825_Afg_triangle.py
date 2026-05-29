@@ -13,7 +13,7 @@ runs = [
     ('afg_extended_u10', r'$A_{\rm fg}\sim U[-10,10]$',       '#2ca02c'),
     ('control_extended', r'no fg marg ($A_{\rm fg}\!=\!0$)', '#000000'),
 ]
-samples = []
+samples, errs = [], []
 for root, lab, _ in runs:
     s = loadMCSamples(base + root, settings={'ignore_rows': 0.3})
     s.paramNames.parWithName('S825').label = r'S_8^{\rm lens}\equiv\sigma_8(\Omega_m/0.3)^{0.25}'
@@ -21,8 +21,17 @@ for root, lab, _ in runs:
     if afg is not None:
         afg.label = r'A_{\rm fg}'
     samples.append(s)
-    st = s.getMargeStats().parWithName('S825')
-    print(f'{lab:34s}  S8_lens = {st.mean:.4f} +/- {st.err:.4f}')
+    errs.append(s.getMargeStats().parWithName('S825').err)
+
+# Degradation in sigma(S8_lens) relative to the no-fg-marg control (last entry).
+sig_ref = errs[-1]
+legend_labels = []
+for (root, lab, _), err in zip(runs, errs):
+    if root == 'control_extended':
+        legend_labels.append(lab + ' [ref]')
+    else:
+        legend_labels.append(lab + f' ($+{100*(err/sig_ref - 1):.0f}\\%$)')
+    print(f'{lab:34s}  sigma(S8_lens) = {err:.4f}  {legend_labels[-1]}')
 
 g = gplt.get_subplot_plotter(width_inch=7)
 g.settings.legend_fontsize = 12
@@ -32,7 +41,7 @@ g.settings.alpha_filled_add = 0.55
 g.triangle_plot(
     samples, ['S825', 'A_fg'],
     filled=True,
-    legend_labels=[lab for _, lab, _ in runs],
+    legend_labels=legend_labels,
     legend_loc='upper right',
     contour_colors=[c for _, _, c in runs],
     param_limits={'A_fg': (-10, 10), 'S825': (0.74, 0.90)},
