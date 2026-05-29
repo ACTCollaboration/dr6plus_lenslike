@@ -33,7 +33,7 @@ for (root, lab, _), err in zip(runs, errs):
         legend_labels.append(lab + f' ($+{100*(err/sig_ref - 1):.0f}\\%$)')
     print(f'{lab:34s}  sigma(S8_lens) = {err:.4f}  {legend_labels[-1]}')
 
-g = gplt.get_subplot_plotter(width_inch=7)
+g = gplt.get_subplot_plotter(width_inch=9)
 g.settings.legend_fontsize = 12
 g.settings.axes_fontsize = 12
 g.settings.axes_labelsize = 15
@@ -47,5 +47,8 @@ g.triangle_plot(
     param_limits={'A_fg': (-10, 10), 'S825': (0.74, 0.90)},
 )
 out = '/home/jiaqu/dr6plus_lenslike/notebooks/fg_marg_S825_Afg_triangle.png'
-g.export(out)
-print('wrote', out)
+g.export(out, dpi=300)
+# Vector copy for publication.
+out_pdf = out.replace('.png', '.pdf')
+g.export(out_pdf)
+print('wrote', out, 'and', out_pdf)
