@@ -721,6 +721,22 @@ Using Cov(Cℓ,Cℓ') = Cℓ×Cℓ'×(σAs/As)² (1% As uncertainty):
 - `lens_only=True` currently loads CMB-marginalized covariance and skips likelihood corrections
 - M matrices operate on Cℓ (not Dℓ)
 
+## 2026-06-01: Lensing + DESI DR2 BAO fg-marg runs (manager-direct)
+
+Extend the widened-prior A_fg test by adding fiducial DESI DR2 BAO, to measure the **sigma8** degradation (BAO breaks the sigma8-Omega_m degeneracy that lensing-only leaves open, so sigma8 — not just S8_lens — becomes meaningful). Done directly by manager at user request.
+
+- BAO likelihood: `bao.desi_dr2.desi_bao_all_fd` (fiducial, full tracer set), added to the existing extended class_sz+lensing configs. class_sz already computes background distances (skip_chi/hubble=0); `cobaya-run --test` confirmed the combined model initializes and A_fg routes correctly.
+- Reference for BAO setup: `/home/jiaqu/mnu_de/.agent/project-context.md` (sec "BAO: DESI DR2") and `mnu_de/base/bao_all_fd.yaml`.
+
+| YAML                              | A_fg prior  | Job ID  | output (/scratch/jiaqu/chains/fg_marg_test/) |
+|-----------------------------------|-------------|---------|----------------------------------------------|
+| mcmc_control_extended_bao.yaml    | (no marg)   | 1692859 | control_extended_bao   |
+| mcmc_afg_extended_bao.yaml        | U[-2, 2]    | 1692860 | afg_extended_bao       |
+| mcmc_afg_extended_u5_bao.yaml     | U[-5, 5]    | 1692862 | afg_extended_u5_bao    |
+| mcmc_afg_extended_u10_bao.yaml    | U[-10, 10]  | 1692863 | afg_extended_u10_bao   |
+
+Submitted 2026-06-01 ~14:55. Follow-up: once converged, make the triangle plot (sigma8 vs A_fg) with degradation % in legend, analogous to `notebooks/fg_marg_S825_Afg_triangle.py`.
+
 ## 2026-05-21: Foreground bias marginalization (A_fg) — dispatched
 
 ### Task
