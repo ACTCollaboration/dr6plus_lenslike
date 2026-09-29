@@ -36,7 +36,26 @@ dr6plus_fiducial_baseline,
 dr6plus_fiducial_extended,
 day_baseline,
 day_extended,
+spt_day,
+dr6plus_optimal,
+dr6plus_variant0,
+actbase,
+act_planck,
 '''.strip().replace('\n','').split(',')]
+
+# Number of simulations behind a variant's covariance, where it differs from
+# the nsims_act default. Used for the Hartlap correction.
+variant_nsims = {'dr6plus_optimal': 599, 'dr6plus_variant0': 599, 'actbase': 599, 'act_planck': 599}
+
+# Variants whose CMB corrections come from their own products in
+# data/<version>/like_corrs_<variant>/ (export_per_variant_corrs.py), built
+# from the profile-hardened (ph) like_corrs normalization derivatives of the
+# DR6+ reconstruction, in the N1-deconvolved form (binned response B A R, no
+# dN1/dC_kk term): response_binned.npz (full mode), covmat_cmbmarg_analytic.txt
+# and lens_only_delta.txt (lens_only analytic_marg). actbase and act_planck are
+# built from the production stage outputs (src/build_variant_corrs_from_stages.py,
+# per-patch N1 derivatives). All other variants keep the DR6-shipped like_corrs/ files.
+per_variant_corrs = ('dr6plus_optimal', 'dr6plus_variant0', 'actbase', 'act_planck')
 
 
 # ================
@@ -142,6 +161,30 @@ def get_corrected_clkk(data_dict,clkk,cltt,clte,clee,clbb,suff='',
             norm_corr = norm_corr + c
     nclkk = clkk + norm_corr*clkk_fid + N1_kk_corr + N1_cmb_corr
     return nclkk
+
+
+def get_binned_cmb_correction(data_dict, cltt, clte, clee, clbb, act_calib=False):
+    """
+    CMB correction of a per-variant (per_variant_corrs) bandpower vector:
+    sum_X Mb^X @ (C^X_th / cal - C^X_fid), X = TT, EE, TE, with Mb the
+    variant's binned response (norm + N1, ph normalization, N1-deconvolved
+    form). cal follows get_corrected_clkk (act_calib: mean TT ratio to the
+    fiducial over 1000 < ell < 2000). Added to binmat @ clkk.
+    """
+    cl_dict = {'tt': cltt, 'te': clte, 'ee': clee, 'bb': clbb}
+    if act_calib:
+        ocl = cl_dict['tt']
+        fcl = data_dict['fiducial_cl_tt']
+        ols = np.arange(ocl.size)
+        sel = np.s_[np.logical_and(ols > 1000, ols < 2000)]
+        cal_fact = (ocl[sel] / fcl[sel]).mean()
+    else:
+        cal_fact = 1.0
+    corr = 0.
+    for i, s in enumerate(data_dict['Mb_specs']):
+        cldiff = (cl_dict[s] / cal_fact) - data_dict[f'fiducial_cl_{s}']
+        corr = corr + data_dict['Mb_binned'][i] @ cldiff
+    return corr
 
 
 def get_lens_only_corrected_clkk(data_dict, clkk):
@@ -254,6 +297,37 @@ def parse_variant(variant):
         v = 'day'
         baseline = True if '_baseline' in variant else False
 
+    # Handle SPT-3G Summer daytime variant (self-contained bandpowers, Table 4
+    # combined column of arXiv:2607.05784). Treated like the spt3g/MUSE variant:
+    # bandpowers, diagonal covariance, and top-hat bandpower windows are loaded
+    # from a self-contained .npz and used directly (no bin trimming).
+    if variant == 'spt_day':
+        v = 'spt_day'
+        baseline = True
+
+    # DR6+ optimal combination: the three-experiment GLS combination (with
+    # leave-one-out cross-fit weights) of the HILC T+P night 40-patch
+    # inverse-variance optfilter reconstruction with the two daytime runs
+    # (daydeep_pa5pa6, daywide_S_pa5), from 599 realizations. Its default band
+    # is neither the baseline nor the extended one: the first two bins are
+    # dropped and the vector stops at L = 1100 (see load_data).
+    if variant == 'dr6plus_optimal':
+        v = 'dr6plus_optimal'
+        baseline = True
+    # Analysis variant 0 of DR6plus_lensing: ACT-only night four-array k-space
+    # coadd (lmin 600), N1-deconvolved point and covariance from 599
+    # realizations; same default band as dr6plus_optimal.
+    if variant == 'dr6plus_variant0':
+        v = 'dr6plus_variant0'
+        baseline = True
+    # DR6plus_lensing variants 9h (actbase: ACT-only HILC 40 patches, lmin 600)
+    # and 9a (act_planck: ACT+Planck HILC 40 patches, lmin 100), each GLS-LOO
+    # combined with daydeep and daywide; 599 realizations; same default band as
+    # dr6plus_optimal. The explicit names override the '_' split above.
+    if variant in ('actbase', 'act_planck'):
+        v = variant
+        baseline = True
+
     include_planck = True if 'actplanck' in variant else False
     include_spt = True if 'actplanckspt3g' in variant else False
     include_spt_no_planck = True if 'actspt3g' in variant else False
@@ -284,7 +358,7 @@ def load_data(variant, indep=False, ddir=None,
               apply_hartlap=True,like_corrections=True,mock=False,
               nsims_act=796,nsims_planck=400,trim_lmax=2998,scale_cov=None,
               version=None, act_cmb_rescale=False, act_calib=False,spt_start=0,spt_end=None,
-              selfcal=False, n_drop_high=None, cov_file=None,
+              selfcal=False, n_drop_high=None, cov_file=None, mock_file=None,
               fg_marg=False, fg_template_file=None, fg_template_index=9):
     """
     Given a data directory path, this function loads into a dictionary
@@ -326,6 +400,15 @@ def load_data(variant, indep=False, ddir=None,
 
     # output data
     d = {}
+
+    # Mock bandpowers (blinded variants): packaged binned fiducial C_L^kk, or
+    # mock_file (absolute, or relative to the data directory).
+    if mock_file is not None and not mock:
+        raise ValueError("mock_file requires mock=True.")
+    if mock_file is None:
+        mock_path = f'{ddir}/clkk_bandpowers_fiducial.txt'
+    else:
+        mock_path = mock_file if os.path.isabs(mock_file) else os.path.join(ddir, mock_file)
 
     if lens_only and like_corrections: raise ValueError("Likelihood corrections should not be used in lens_only runs.")
     if not(lens_only) and not(like_corrections):
@@ -391,6 +474,12 @@ def load_data(variant, indep=False, ddir=None,
     else:
         start = 2
         end = -3
+    if v in ('dr6plus_optimal', 'dr6plus_variant0', 'actbase', 'act_planck'):
+        # 40 < L < 1100: drop the first two bins and the four highest, keeping
+        # the 12 bins with centres 53 ... 1001 of the 18-bin set. This is the
+        # slB band of the shared product, the one its quoted SNR refers to.
+        start = 2
+        end = -4
     if n_drop_high is not None:
         end = -int(n_drop_high) if n_drop_high > 0 else None
 
@@ -406,10 +495,58 @@ def load_data(variant, indep=False, ddir=None,
         # Load fiducial bandpowers for DR6+ variant
         y = np.loadtxt(f'{ddir}/clkk_act_fiducial.txt')
     elif v=='day':
-        # Load daytime bandpowers for day variant
-        y = np.loadtxt(f'{ddir}/clkk_daytime_dddwS_daylens.txt')
-        #y = np.loadtxt(f'{ddir}/clkk_act_fiducial.txt')
-    elif v=='spt3g':  
+        # Load daytime bandpowers for day variant (2026 daylens release)
+        y = np.loadtxt(f'{ddir}/clkk_daytime_2026.txt')
+    elif v=='dr6plus_optimal':
+        # DR6+ night 40-patch optfilter GLS-combined with the two daytime
+        # runs. BLINDED: the measured bandpowers may not enter a likelihood
+        # before unblinding, so this variant refuses to load them; only
+        # mock=True is licensed, in which the data vector is the binned
+        # fiducial C_L^kk (clkk_bandpowers_fiducial.txt, identical to the
+        # clkk_binned array packaged with the shared sim bank). The covariance
+        # is the real sim-bank one in either case.
+        if not mock:
+            raise ValueError(
+                "Variant dr6plus_optimal is BLINDED. Its measured bandpowers "
+                "may not be used in a likelihood before unblinding: set "
+                "mock=True to run on the binned fiducial C_L^kk instead."
+            )
+        y = np.loadtxt(mock_path)
+        warnings.warn("dr6plus_optimal is blinded: using fiducial (mock) "
+                      "bandpowers, not data.")
+    elif v=='dr6plus_variant0':
+        # Measured bandpowers are packaged (clkk_dr6plus_variant0.txt) but
+        # BLINDED exactly as dr6plus_optimal: only mock=True is licensed.
+        if not mock:
+            raise ValueError(
+                "Variant dr6plus_variant0 is BLINDED. Its measured bandpowers "
+                "may not be used in a likelihood before unblinding: set "
+                "mock=True to run on the binned fiducial C_L^kk instead."
+            )
+        y = np.loadtxt(mock_path)
+        warnings.warn("dr6plus_variant0 is blinded: using fiducial (mock) "
+                      "bandpowers, not data.")
+    elif v in ('actbase', 'act_planck'):
+        # Measured bandpowers are packaged (clkk_<v>.txt) but BLINDED exactly
+        # as dr6plus_optimal: only mock=True is licensed.
+        if not mock:
+            raise ValueError(
+                f"Variant {v} is BLINDED. Its measured bandpowers "
+                "may not be used in a likelihood before unblinding: set "
+                "mock=True to run on the binned fiducial C_L^kk instead."
+            )
+        y = np.loadtxt(mock_path)
+        warnings.warn(f"{v} is blinded: using fiducial (mock) bandpowers, not data.")
+    elif v=='spt_day':
+        # SPT-3G Summer daytime lensing (arXiv:2607.05784, Table 4 combined
+        # column). Self-contained products: d_kk (C_L^kk), cov_kk (diagonal;
+        # off-diagonals not published so neglected), bpwf (top-hat bandpower
+        # windows over each [Lmin,Lmax], row-normalised to unit sum).
+        spt_summer = np.load(f'{ddir}/spt3g_summer_daylens.npz')
+        y = spt_summer['d_kk'][spt_start:spt_end]
+        start = 0
+        end = None
+    elif v=='spt3g':
         spt_data = np.load(f'{ddir}/muse_likelihood.npz')
         y=spt_data['d_kk'][spt_start:spt_end]
         start = 0
@@ -420,14 +557,14 @@ def load_data(variant, indep=False, ddir=None,
 
     nbins_tot_act = y.size
     d['full_data_binned_clkk_act'] = y.copy()
-    if v=='spt3g': 
-        data_act = y.copy() 
+    if v in ('spt3g','spt_day'):
+        data_act = y.copy()
     else:
         data_act = y[start:end].copy()
-        
+
     d['data_binned_clkk'] = data_act
     nbins_act = data_act.size
-        
+
 
     binmat = np.loadtxt(f'{ddir}/binning_matrix_act.txt')
 
@@ -439,6 +576,20 @@ def load_data(variant, indep=False, ddir=None,
         bcents = binmat@pells
         ls = np.arange(1, binmat.shape[1]+1)
         d['binmat_act'] = standardize(ls,binmat[:,:],3100,extra_dims="xy")
+        d['bcents_act'] = bcents[:].copy()
+
+    elif v=='spt_day':
+        # Top-hat bandpower windows over each [Lmin,Lmax] (rows sum to 1);
+        # bandpower L index starts at 0 (matches how the windows were built).
+        # Standardize to trim_lmax so the window matrix aligns with the theory
+        # cl_kk vector in generic_lnlike (which is standardized to trim_lmax in
+        # the non-only_spt path). SPT Summer's top bin ends at L=2000<trim_lmax.
+        binmat = spt_summer['bpwf'][spt_start:spt_end,:]
+        d['full_binmat_act'] = binmat.copy()
+        pells = np.arange(binmat.shape[1])
+        bcents = binmat@pells
+        ls = np.arange(binmat.shape[1])
+        d['binmat_act'] = standardize(ls,binmat[:,:],trim_lmax,extra_dims="xy")
         d['bcents_act'] = bcents[:].copy()
 
     else:
@@ -510,8 +661,25 @@ def load_data(variant, indep=False, ddir=None,
                 # Use DR6+ night+day+deep covariance matrix for fiducial variant
                 fcov = np.loadtxt(f"{ddir}/cov_clkk_daytime_dddwS.txt")
             elif v=='day':
-                # Use daytime covariance matrix for day variant
-                fcov = np.loadtxt(f"{ddir}/cov_clkk_daytime_dddwS.txt")
+                # Use daytime covariance matrix for day variant (2026 daylens release)
+                fcov = np.loadtxt(f"{ddir}/covmat_clkk_daytime_2026.txt")
+            elif v in per_variant_corrs:
+                # With analytic_marg: the variant's own CMB-marginalized
+                # covariance (sim-bank covariance + Eq. 34 addition from its
+                # ph like_corrs response). Without it: the plain sim-bank
+                # covariance, NOT CMB marginalized.
+                if analytic_marg:
+                    fcov = np.loadtxt(f"{ddir}/like_corrs_{v}/covmat_cmbmarg_analytic.txt")
+                elif v == 'dr6plus_optimal':
+                    fcov = np.loadtxt(f"{ddir}/covmat_clkk_hilcTP_nightday_glsloo.txt")
+                elif v == 'dr6plus_variant0':
+                    fcov = np.loadtxt(f"{ddir}/covmat_clkk_dr6plus_variant0.txt")
+                else:
+                    fcov = np.loadtxt(f"{ddir}/covmat_clkk_{v}.txt")
+            elif v=='spt_day':
+                # SPT-3G Summer diagonal covariance from Table 4 quoted errors.
+                fcov = spt_summer['cov_kk']
+                fcov = fcov[spt_start:spt_end,spt_start:spt_end]
             elif v=='spt3g':
                 fcov=spt_data['cov_kk']
                 fcov=fcov[spt_start:spt_end,spt_start:spt_end]
@@ -524,7 +692,18 @@ def load_data(variant, indep=False, ddir=None,
                     else:
                         fcov = np.loadtxt(f"{ddir}/covmat_act_cmbmarg.txt")
 
-        if analytic_marg:
+        if analytic_marg and v in per_variant_corrs:
+            # Eq. 35 recentering of the variant, in bandpower space; the
+            # deconvolved form carries no dN1/dC_kk term. Delta_b =
+            # Mb (C_data - C_fid) recentres on the measured CMB spectra. A mock
+            # is a fiducial sky whose CMB equals the normalization fiducial, so
+            # its Delta_b is zero; the CMB-marginalized covariance is kept.
+            delta_b = np.loadtxt(f"{ddir}/like_corrs_{v}/lens_only_delta.txt")
+            if mock:
+                d['lens_only_delta'] = np.zeros_like(delta_b[start:end])
+            else:
+                d['lens_only_delta'] = delta_b[start:end].copy()
+        elif analytic_marg:
             # Load dN1_kk matrix for lens_only correction
             n1mat = np.loadtxt(f"{ddir}/like_corrs/N1der_KK_lmin600_lmax3000_full.txt")
             fAL_ls = np.arange(n1mat.shape[0])  # L values
@@ -539,7 +718,8 @@ def load_data(variant, indep=False, ddir=None,
             d['lens_only_const'][:end_idx] = lens_only_const_raw[:end_idx]
 
     else:
-        if v not in [None,'cinpaint','dr6plus_fiducial','day']: 
+        if v not in [None,'cinpaint','dr6plus_fiducial','day','dr6plus_optimal','dr6plus_variant0',
+                     'actbase','act_planck']:
             raise ValueError(f"Covmat for {v} without CMB marginalization is not available")
       
         if include_planck and include_spt:
@@ -556,7 +736,13 @@ def load_data(variant, indep=False, ddir=None,
             if v == 'dr6plus_fiducial':
                 fcov = np.loadtxt(f'{ddir}/covmat_dr6+nightdaydeep.txt')
             elif v == 'day':
-                fcov = np.loadtxt(f'{ddir}/cov_clkk_daytime_daylens.txt')
+                fcov = np.loadtxt(f'{ddir}/covmat_clkk_daytime_2026.txt')
+            elif v == 'dr6plus_optimal':
+                fcov = np.loadtxt(f'{ddir}/covmat_clkk_hilcTP_nightday_glsloo.txt')
+            elif v == 'dr6plus_variant0':
+                fcov = np.loadtxt(f'{ddir}/covmat_clkk_dr6plus_variant0.txt')
+            elif v in ('actbase', 'act_planck'):
+                fcov = np.loadtxt(f'{ddir}/covmat_clkk_{v}.txt')
             else:
                 fcov = np.loadtxt(f'{ddir}/covmat_act.txt')
 
@@ -609,7 +795,15 @@ def load_data(variant, indep=False, ddir=None,
     
 
 
-    if like_corrections:
+    if like_corrections and v in per_variant_corrs:
+        # Binned response of the variant's deconvolved bandpowers to the lensed
+        # CMB spectra (norm + N1 parts, ph normalization), rows = its band.
+        rz = np.load(f"{ddir}/like_corrs_{v}/response_binned.npz")
+        Mb = rz['Mb'][:, start:end, :]
+        d['Mb_binned'] = np.stack([standardize(rz['ells'], m, trim_lmax, extra_dims="xy") for m in Mb])
+        d['Mb_specs'] = [str(x).lower() for x in rz['specs']]
+        d['binned_corr'] = True
+    elif like_corrections:
         # Load matrices
         cmat = np.load(f"{ddir}/like_corrs/norm_correction_matrix_Lmin0_Lmax4000.npy")
         ls = np.arange(cmat.shape[1])
@@ -634,6 +828,9 @@ def load_data(variant, indep=False, ddir=None,
                 d[f'dN1_{spec}_planck'] = standardize(fAL_ls,n1mat,trim_lmax,extra_dims="yy")
 
     nbins = d['data_binned_clkk'].size
+    if v in variant_nsims:
+        nsims_act = variant_nsims[v]
+        warnings.warn(f"Variant {v}: nsims_act set to {nsims_act} (its covariance's sim bank)")
     nsims = min(nsims_act,nsims_planck) if include_planck else nsims_act
     hartlap_correction = (nsims-nbins-2.)/(nsims-1.)
     if apply_hartlap:
@@ -648,12 +845,15 @@ def load_data(variant, indep=False, ddir=None,
     cinv = np.linalg.inv(cov) * hartlap_correction
     d['cinv'] = cinv
 
-    if mock:
-        mclpp = np.loadtxt(f"{ddir}/cls_default_dr6_accuracy.txt",usecols=[5])
-        ls = np.arange(mclpp.size)
-        mclkk = mclpp * 2. * np.pi / 4.
-        self.clkk_data = self.binning_matrix @ mclkk[:self.kLmax]
-    
+    if mock and v not in per_variant_corrs:
+        # For dr6plus_optimal the fiducial bandpowers were already loaded in
+        # place of the data above. No other variant implements a mock vector
+        # (the legacy code here referenced an undefined self and a missing
+        # cls_default_dr6_accuracy.txt, so it never worked).
+        raise NotImplementedError(
+            f"mock=True is only implemented for variants {', '.join(per_variant_corrs)}."
+        )
+
     return d
     
 
@@ -731,6 +931,16 @@ def generic_lnlike(data_dict,ell_kk,cl_kk,ell_cmb,cl_tt,cl_ee,cl_te,cl_bb,trim_l
                                   no_like_cmb_corrections=no_actlike_cmb_corrections) if d['likelihood_corrections'] else cl_kk_spt
         bclkk = d['binmat_act'] @ clkk_act
 
+    elif d.get('binned_corr', False):
+        # per-variant products (per_variant_corrs), full mode: deconvolved
+        # bandpowers, theory B clkk plus the binned CMB response term
+        bclkk = d['binmat_act'] @ cl_kk
+        if not no_actlike_cmb_corrections:
+            bclkk = bclkk + get_binned_cmb_correction(data_dict, cl_tt, cl_te, cl_ee, cl_bb,
+                                                      act_calib=act_calib)
+    elif 'lens_only_delta' in d:
+        # per-variant products, lens_only analytic_marg: B clkk + Eq. 35 recentering
+        bclkk = d['binmat_act'] @ cl_kk + d['lens_only_delta']
     else:
         if d['likelihood_corrections']:
             clkk_act = get_corrected_clkk(data_dict,cl_kk,cl_tt,cl_te,cl_ee,cl_bb,
@@ -834,6 +1044,10 @@ class ACTDR6LensLike(InstallableLikelihood):
     # Optional override for the ACT covariance matrix file. Absolute path, or
     # filename relative to the data directory. None uses the variant default.
     cov_file = None
+    # Optional mock bandpower file (mock=True only), e.g. the verification mocks
+    # in tests/mock/. Absolute path, or filename relative to the data directory.
+    # None uses the packaged clkk_bandpowers_fiducial.txt.
+    mock_file = None
 
     def initialize(self):
         if self.lens_only: self.no_like_corrections = True
@@ -856,6 +1070,7 @@ class ACTDR6LensLike(InstallableLikelihood):
                               trim_lmax=self.trim_lmax,scale_cov=self.scale_cov,version=self.version,
                               act_cmb_rescale=self.act_cmb_rescale,act_calib=self.act_calib,spt_start=self.spt_start,spt_end=self.spt_end,
                               selfcal=self.selfcal,n_drop_high=self.n_drop_high,cov_file=self.cov_file,
+                              mock_file=self.mock_file,
                               fg_marg=self.fg_marg,fg_template_file=self.fg_template_file,
                               fg_template_index=self.fg_template_index)
         

@@ -33,10 +33,14 @@ The low-ell CMB likelihoods (`planck_2018_lowl.TT`, `planck_2018_lowl.EE_sroll2`
 are not mocked: the verification runs use the real low-ell data.
 
 **Status.** The lensing-likelihood side referred to below (the `mock_file` option,
-the mock-mode Eq. 35 change, and `tests/test_mock_products.py`) is not yet in the
-repository. Until it is, `mock: true` uses the packaged
-`clkk_bandpowers_fiducial.txt`, which equals `clkk_bandpowers_mock.txt` to one unit
-in the last place. The two generators need only the files in this folder and the
+the mock-mode Eq. 35 change, the per-variant corrections and the variants `ACTbase`
+= DR6plus_lensing 9h and `ACT_Planck` = 9a, whose products in
+`dr6plus_lenslike/data/v1.0/like_corrs_<variant>/` are built by
+`src/build_variant_corrs_from_stages.py`) and `tests/test_mock_products.py` are in
+the repository. The measured bandpowers of the blinded variants are not; mock runs
+never read them. Joint (lens + CMB) runs also need the DR6 lensing likelihood's
+`dr6plus_lenslike/data/v1.0/like_corrs/` directory (fiducial spectra), which is not
+in this repository. The two generators need only the files in this folder and the
 tracked `binning_matrix_act.txt` / `clkk_bandpowers_fiducial.txt`.
 
 ## Copied inputs

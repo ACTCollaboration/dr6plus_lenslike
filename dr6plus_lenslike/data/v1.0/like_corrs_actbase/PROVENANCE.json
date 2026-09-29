@@ -1,0 +1,255 @@
+{
+ "variant": "actbase",
+ "upstream_variant": "dr6plus_variant9h",
+ "note": "variant 9h: ACT-only HILC 40 patches (lmin 600) + daydeep + daywide, GLS-LOO",
+ "written": "2026-09-29T19:08:59-04:00",
+ "script": "src/build_variant_corrs_from_stages.py",
+ "script_md5": "6ba5f787d353ecdb92b41ac83ae22983",
+ "inputs": {
+  "gls_combination": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_combination/patch_comb_nightday_gls-loo.npz",
+   "md5": "c38439d04ed422bed8ebcd2380377d89"
+  },
+  "patch_combination": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_combination/patch_comb.npz",
+   "md5": "c3abc7e6d5c91a5fc74e7917396389f4"
+  },
+  "bpshift_region0": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region0.npz",
+   "md5": "722a6407653ff046127cdf48633e37b3"
+  },
+  "bpshift_region1": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region1.npz",
+   "md5": "79c18fd9ec6aea664757fd6074e71d30"
+  },
+  "bpshift_region2": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region2.npz",
+   "md5": "805f18117d0892cb432f9973d810434a"
+  },
+  "bpshift_region3": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region3.npz",
+   "md5": "03bb4fe43935a3af5a160cb400d5957f"
+  },
+  "bpshift_region4": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region4.npz",
+   "md5": "9652f60fe57e0debd47020bc87141f82"
+  },
+  "bpshift_region5": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region5.npz",
+   "md5": "f6e1db3b5c125e41963ecffbed45c90c"
+  },
+  "bpshift_region6": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region6.npz",
+   "md5": "00b8d910afd4557dbd23ea71cbbc3250"
+  },
+  "bpshift_region7": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region7.npz",
+   "md5": "291961fb5026fe465ba71ce0b676eaf2"
+  },
+  "bpshift_region8": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region8.npz",
+   "md5": "2c4c852b8fe103de2284d7431f834217"
+  },
+  "bpshift_region9": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region9.npz",
+   "md5": "bcdc761e737a38d17185442662d2d4a9"
+  },
+  "bpshift_region10": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region10.npz",
+   "md5": "ba5e52eb1a73dc2461c26c2bd8b945a3"
+  },
+  "bpshift_region11": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region11.npz",
+   "md5": "4d42d6c038234009af504ed65cba128a"
+  },
+  "bpshift_region12": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region12.npz",
+   "md5": "6e5f878585cb1b3cefe0eb221fa18ebd"
+  },
+  "bpshift_region13": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region13.npz",
+   "md5": "157e8ca90bb819caeb62ab74669a51c8"
+  },
+  "bpshift_region14": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region14.npz",
+   "md5": "00074f3e2a10e50194acb30ea9af2fc9"
+  },
+  "bpshift_region15": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region15.npz",
+   "md5": "51c9870fea6fd0883ec5c34462ad40ad"
+  },
+  "bpshift_region16": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region16.npz",
+   "md5": "51045e4912edab1b03cadc6c0297bffd"
+  },
+  "bpshift_region17": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region17.npz",
+   "md5": "2e2e81c19cb0173c47b87bac2db69a68"
+  },
+  "bpshift_region18": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region18.npz",
+   "md5": "1eef4a82d5d2f0b2dc2c62d5248c0109"
+  },
+  "bpshift_region19": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region19.npz",
+   "md5": "96f139633f71f7799aac7611f6edc201"
+  },
+  "bpshift_region20": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region20.npz",
+   "md5": "f8f3da269c0e07eab1fc275f82c637c7"
+  },
+  "bpshift_region21": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region21.npz",
+   "md5": "21a4b78bcebb9f56972c9b9ae0ff2c79"
+  },
+  "bpshift_region22": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region22.npz",
+   "md5": "e44c1dea53ae2338e5c81a4e75bb295e"
+  },
+  "bpshift_region23": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region23.npz",
+   "md5": "65d6c40ccacee31d6af1891aaca72dcc"
+  },
+  "bpshift_region24": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region24.npz",
+   "md5": "b96653aa30dbeb0c4199672aa9341a0d"
+  },
+  "bpshift_region25": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region25.npz",
+   "md5": "07fac65f4839b4fa290970e4293b6d97"
+  },
+  "bpshift_region26": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region26.npz",
+   "md5": "1084d6e49b21d35d9f595b33292cf2ae"
+  },
+  "bpshift_region27": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region27.npz",
+   "md5": "c280f727b144652a1c01381588894d67"
+  },
+  "bpshift_region28": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region28.npz",
+   "md5": "801dfd0eff9ea5652c63042109155492"
+  },
+  "bpshift_region29": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region29.npz",
+   "md5": "96bb9daaa612c46ddcf6acac0a21d49f"
+  },
+  "bpshift_region30": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region30.npz",
+   "md5": "3b37ad73a1f52a79c763ca5da60b4cd6"
+  },
+  "bpshift_region31": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region31.npz",
+   "md5": "a8eeae4dd69a0f1f5a29996da1d15971"
+  },
+  "bpshift_region32": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region32.npz",
+   "md5": "438e7fe5238708c0b5c2ab8f6159b1cd"
+  },
+  "bpshift_region33": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region33.npz",
+   "md5": "21fcabebd8c9ecf7ba74b8cc66390e7f"
+  },
+  "bpshift_region34": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region34.npz",
+   "md5": "b6ac7c0a0ad4bc31f3f1518117b16fb2"
+  },
+  "bpshift_region35": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region35.npz",
+   "md5": "d52d6ac4b6a9a00cc8ba4658b2028069"
+  },
+  "bpshift_region36": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region36.npz",
+   "md5": "448f3f19e385f0a333e5321b92d14c4c"
+  },
+  "bpshift_region37": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region37.npz",
+   "md5": "d7e75029af4080a213a783bf242a713a"
+  },
+  "bpshift_region38": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region38.npz",
+   "md5": "ab5f22bcb535fbd8ded9a44c5bf661a9"
+  },
+  "bpshift_region39": {
+   "path": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected/dr6plus_variant9h/stages/stage_bpshift/bpshift_region39.npz",
+   "md5": "81c964b4d0d445d26ac2a86ecf8bfcdb"
+  },
+  "bpshift_daydeep": {
+   "path": "/scratch/jiaqu/day_corrections/daydeep/stage_bpshift/bpshift.npz",
+   "md5": "6a931d5b3589738b1e13bc8e5be00ded"
+  },
+  "bpshift_daywide": {
+   "path": "/scratch/jiaqu/day_corrections/daywide/stage_bpshift/bpshift.npz",
+   "md5": "c4f2e109a500e677f3b9c8ee42904856"
+  },
+  "act_sacc": {
+   "path": "/scratch/jiaqu/likelihood_data/data/ACTDR6CMBonly/v1.0/dr6_data_cmbonly.fits",
+   "md5": "b615072fd09d5f5c614505a97eaacf33"
+  }
+ },
+ "package_meta": {
+  "variant": "dr6plus_variant9h",
+  "kind": "combination",
+  "run": "/scratch/jiaqu/patch_hilc_actonly_MV_600_3000_1deg",
+  "note": "variant 9h (ACT-only HILC 40 patches, lmin 600, + daydeep + daywide, GLS-LOO); per-patch N1der",
+  "packaged": "2026-09-29T06:48:59-0400",
+  "argv": [
+   "utility/package_corrected_bandpowers.py",
+   "--force",
+   "--variant",
+   "dr6plus_variant9h",
+   "--kind",
+   "combination",
+   "--run",
+   "/scratch/jiaqu/patch_hilc_actonly_MV_600_3000_1deg",
+   "--note",
+   "variant 9h (ACT-only HILC 40 patches, lmin 600, + daydeep + daywide, GLS-LOO); per-patch N1der"
+  ],
+  "code": {
+   "package_corrected_bandpowers.py": "e47f43becd24cb004208d16d7ed02958"
+  },
+  "source": "/scratch/jiaqu/patch_hilc_actonly_MV_600_3000_1deg/stage_combination/patch_comb_nightday_gls-loo.npz",
+  "source_md5": "c38439d04ed422bed8ebcd2380377d89",
+  "bins": "18 bins of binning_matrix_act.txt; 40<L<1100 = bins 2:14",
+  "convention": "band_corr = band - delta; delta = bandpower shift of the ph normalization and plain-MV N1 derivatives times the measured minus fiducial CMB; cov raw sample covariance of the uncorrected bank (no Hartlap), nsim realizations",
+  "stages_copied": {
+   "stage_normder": 202,
+   "stage_n1der": 122,
+   "stage_bpshift": 82,
+   "stage_combination": 14
+  }
+ },
+ "outputs": {
+  "dr6plus_lenslike/data/v1.0/clkk_actbase.txt": "061aa167181d4d1a5471457dc3d982e8",
+  "dr6plus_lenslike/data/v1.0/covmat_clkk_actbase.txt": "b4c51cebb9710f65798cd7a005f9f607",
+  "dr6plus_lenslike/data/v1.0/like_corrs_actbase/response_binned.npz": "5fe21321fb153ac921c98a9813d50ac0",
+  "dr6plus_lenslike/data/v1.0/like_corrs_actbase/covmat_cmbmarg_analytic.txt": "bf8c2f85713f4a00e18929380e84b5d9",
+  "dr6plus_lenslike/data/v1.0/like_corrs_actbase/lens_only_delta.txt": "845e2d167d20281ec3f55b49173bafa5"
+ },
+ "nsim": 599,
+ "legs": [
+  "HILC T+P optfilter (invvar)",
+  "daydeep",
+  "daywide"
+ ],
+ "norm_matrix": "ph (profile-hardened bhph, stage_normder)",
+ "n1_derivative": "plain MV N1der per patch (stage_n1der), decision 2026-09-28",
+ "form": "N1-deconvolved: response B A R, no dN1/dC_kk term in the theory",
+ "cmb_data": "ACT DR6 CMB-only public v1.0 (dr6_data_cmbonly.fits), TT/TE/EE ell >= 600",
+ "bpshift_cmb": "act",
+ "checks": {
+  "region_rows_reproduce_delta_max_rel": 2.1026392287409373e-15,
+  "night_delta_vs_patch_comb_max_rel": 0.0,
+  "night_delta_vs_gls_leg_max_rel": 0.0,
+  "daydeep_rows_reproduce_delta_max_rel": 1.517975867557283e-15,
+  "daydeep_delta_vs_gls_leg_max_rel": 0.0,
+  "daywide_rows_reproduce_delta_max_rel": 3.14540508601918e-16,
+  "daywide_delta_vs_gls_leg_max_rel": 0.0,
+  "combined_delta_vs_gls_delta_comb_max_rel": 0.0,
+  "combined_delta_vs_packaged_delta_max_rel": 0.0,
+  "cov_vs_combination_cov_max_rel": 0.0,
+  "addition_symmetric_max_abs": 2.311115933264683e-33,
+  "addition_min_eigenvalue_over_max": 2.9802859003639155e-07
+ },
+ "peak_sigma_broadening_pct_40_1100": 3.488958891855698
+}

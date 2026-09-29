@@ -1,0 +1,23 @@
+{
+ "variant": "dr6plus_optimal",
+ "written": "2026-09-25T09:48:38-04:00",
+ "forms": "/scratch/jiaqu/like_corrs/variant9a_ph/variant9a_cmbmarg_analytic_forms.npz",
+ "forms_md5": "fd609ed5d3319544caebc2bc4cb7c77c",
+ "add_key": "add_pact",
+ "base_key": "base",
+ "base_cov_file": "covmat_clkk_hilcTP_nightday_glsloo.txt",
+ "norm_matrix": "ph",
+ "norm_matrix_files": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/like_corrs/<config>/norm_correction_matrix_bhph_Lmin0_Lmax4000.npy (see CANONICAL.md there)",
+ "n1_derivative": "plain MV N1der_{TT,EE,BB,TE} (decision 2026-09-25)",
+ "form": "N1-deconvolved: response B A R, no dN1/dC_kk term in the theory",
+ "cmb_data": "P-ACT lite: plik_lite v22 PlanckActCut (TT<1000, TE/EE<600; dC below ell 600) + ACT DR6 CMB-only public v1.0 (ell>=600)",
+ "checks": {
+  "bin_centres_max_abs_diff": 0.0,
+  "base_vs_packaged_cov_max_rel_diff": 0.0,
+  "addition_symmetric_max_abs": 1.5407439555097887e-33,
+  "addition_min_eigenvalue_over_max": 2.3983585353327416e-07,
+  "delta_vs_forms_Delta_max_rel_diff": 3.9968028886505635e-15
+ },
+ "note": "9a (no strip infill): 40 per-patch ph norm matrices (hilc6c_patch<p>) x MCN1-matched patch operators, invvar patch weights; footprint N1der for the night leg; daydeep/daywide legs; GLS-LOO leg weights",
+ "peak_sigma_broadening_pct_40_1100": 3.6201624604986993
+}

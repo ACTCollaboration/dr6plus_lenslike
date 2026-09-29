@@ -1,0 +1,22 @@
+{
+ "variant": "dr6plus_variant0",
+ "written": "2026-09-25T06:11:19-04:00",
+ "forms": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/like_corrs/variant0/likelihood_test_ph/variant0_cmbmarg_analytic_forms.npz",
+ "forms_md5": "53d9704a0e32b5224019e832be5e09a7",
+ "add_key": "add_dec",
+ "base_key": "base_dec",
+ "base_cov_file": "covmat_clkk_dr6plus_variant0.txt",
+ "norm_matrix": "ph",
+ "norm_matrix_files": "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/like_corrs/<config>/norm_correction_matrix_bhph_Lmin0_Lmax4000.npy (see CANONICAL.md there)",
+ "n1_derivative": "plain MV N1der_{TT,EE,BB,TE} (decision 2026-09-25)",
+ "form": "N1-deconvolved: response B A R, no dN1/dC_kk term in the theory",
+ "cmb_data": "ACT DR6 CMB-only public v1.0 (dr6_data_cmbonly.fits), TT/TE/EE ell>=600; no Planck",
+ "checks": {
+  "bin_centres_max_abs_diff": 0.0,
+  "base_vs_packaged_cov_max_rel_diff": 0.0,
+  "addition_symmetric_max_abs": 1.5407439555097887e-33,
+  "addition_min_eigenvalue_over_max": 2.9402457888250316e-07
+ },
+ "note": "variant0 like_corrs (ph norm, plain N1der), deconvolved with the MCN1-matched operator",
+ "peak_sigma_broadening_pct_40_1100": 2.900381808963348
+}
