@@ -1,0 +1,132 @@
+{
+ "product": "primary CMB (ACT DR6 CMB-only, Planck 2018 plik-lite) and DESI DR2 BAO mocks",
+ "cosmology": {
+  "input": {
+   "H0": 67.02393,
+   "ombh2": 0.02219218,
+   "omch2": 0.1203058,
+   "As": 2.15086031154146e-09,
+   "ns": 0.9625356,
+   "tau": 0.06574325,
+   "mnu": 0.06
+  },
+  "derived": {
+   "cosmomc_theta": 0.010407344716557772,
+   "rdrag": 147.21838303879989,
+   "YHe": 0.24577921362798913,
+   "sigma8": 0.8219555748476871
+  },
+  "nuisance": {
+   "A_planck": 1.0,
+   "P_act": 1.0
+  },
+  "conventions": "base params from the cosmo2017 ini; ACT DR6 reference theory block; CAMB defaults otherwise (Sum m_nu 0.06 in 1 massive state, N_eff 3.044, halofit mead2020, BBN YHe)"
+ },
+ "theory": {
+  "camb_module": "/scratch/jiaqu/likelihood_data/code/CAMB/camb/__init__.py",
+  "camb_version": "1.6.2",
+  "theory_file": {
+   "path": "tests/mock/cosmo2017/inputs/act_dr6_theory_camb.yaml",
+   "md5": "bb2bea5ed1a121349074193ae0088094",
+   "source": "DR6-ACT-lite yamls/theories/camb.yaml, commit 0e0cd2c"
+  },
+  "extra_args": {
+   "kmax": 10,
+   "k_per_logint": 130,
+   "nonlinear": true,
+   "lens_potential_accuracy": 8,
+   "lens_margin": 2050,
+   "lAccuracyBoost": 1.2,
+   "min_l_logl_sampling": 6000,
+   "DoLateRadTruncation": false,
+   "recombination_model": "CosmoRec"
+  },
+  "camb_defaults_used": {
+   "nnu": 3.0440000000000005,
+   "num_massive_neutrinos": 1,
+   "halofit_version": "mead2020"
+  }
+ },
+ "written": "2026-09-29T18:39:48-04:00",
+ "script": "tests/mock/make_mock_cmb_bao.py",
+ "script_md5": "dfcbe9ee0aa5981fc99a0f52c137fd33",
+ "inputs": {
+  "params_ini": {
+   "path": "/home/jiaqu/dr6plus_lenslike/tests/mock/cosmo2017/inputs/cosmo2017_10K_acc3_params.ini",
+   "md5": "f70b827851598d5f409703cef54e4af9"
+  },
+  "theory_file": {
+   "path": "/home/jiaqu/dr6plus_lenslike/tests/mock/cosmo2017/inputs/act_dr6_theory_camb.yaml",
+   "md5": "bb2bea5ed1a121349074193ae0088094"
+  },
+  "likelihood_file": {
+   "path": "/home/jiaqu/dr6plus_lenslike/tests/mock/cosmo2017/inputs/act_dr6_likelihood_p_act_lite.yaml",
+   "md5": "d553cc8fef2391838511ae500bc963f5"
+  },
+  "act_sacc": {
+   "path": "/scratch/jiaqu/likelihood_data/data/ACTDR6CMBonly/v1.0/dr6_data_cmbonly.fits",
+   "md5": "b615072fd09d5f5c614505a97eaacf33"
+  },
+  "bao_mean": {
+   "path": "/scratch/jiaqu/likelihood_data/data/bao_data/desi_bao_dr2/desi_gaussian_bao_ALL_GCcomb_mean.txt",
+   "md5": "9c2d2c029e7cd58562cb5b9bf2abf5ff"
+  },
+  "bao_cov": {
+   "path": "/scratch/jiaqu/likelihood_data/data/bao_data/desi_bao_dr2/desi_gaussian_bao_ALL_GCcomb_cov.txt",
+   "md5": "c58dbe4b2d0cbd2b261e64c85cd211a7"
+  },
+  "plik/blmax.dat": {
+   "path": "/scratch/jiaqu/likelihood_data/data/planck_2018_pliklite_native/blmax.dat",
+   "md5": "30e8284fb7ecf8fd6564d60b10aedaae"
+  },
+  "plik/blmin.dat": {
+   "path": "/scratch/jiaqu/likelihood_data/data/planck_2018_pliklite_native/blmin.dat",
+   "md5": "751bef1e0e56abc122d807e80c3c8806"
+  },
+  "plik/bweight.dat": {
+   "path": "/scratch/jiaqu/likelihood_data/data/planck_2018_pliklite_native/bweight.dat",
+   "md5": "c71612923ce3f0273944033445c9c519"
+  },
+  "plik/c_matrix_plik_v22.dat": {
+   "path": "/scratch/jiaqu/likelihood_data/data/planck_2018_pliklite_native/c_matrix_plik_v22.dat",
+   "md5": "81f3181ec9c85d7114b3a3cf65d511e2"
+  },
+  "plik/cl_cmb_plik_v22.dat": {
+   "path": "/scratch/jiaqu/likelihood_data/data/planck_2018_pliklite_native/cl_cmb_plik_v22.dat",
+   "md5": "690b6b708572bf00486db3250ea988d8"
+  },
+  "plik/plik_lite_v22.dataset": {
+   "path": "/scratch/jiaqu/likelihood_data/data/planck_2018_pliklite_native/plik_lite_v22.dataset",
+   "md5": "1b7533e98d8a3cc0b1a64d2f8de36f9e"
+  },
+  "plik/version.dat": {
+   "path": "/scratch/jiaqu/likelihood_data/data/planck_2018_pliklite_native/version.dat",
+   "md5": "6654c734ccab8f440ff0825eb443dc7f"
+  }
+ },
+ "outputs": {
+  "tests/mock/cosmo2017/cmb/ACTDR6CMBonly/v1.0/dr6_data_cmbonly_mock.fits": "8630a7d36d0be7141eb01b4cd7c35ff8",
+  "tests/mock/cosmo2017/bao/desi_gaussian_bao_ALL_GCcomb_mean_mock.txt": "7388e1ba63ddc09d0c68e83263c7de5f",
+  "tests/mock/cosmo2017/bao/desi_gaussian_bao_ALL_GCcomb_cov.txt": "c58dbe4b2d0cbd2b261e64c85cd211a7",
+  "tests/mock/cosmo2017/theta_fid.yaml": "4d846de3331b0e286c44d1b3b6ea2214",
+  "tests/mock/cosmo2017/cmb/planck_2018_pliklite_mock/blmax.dat": "30e8284fb7ecf8fd6564d60b10aedaae",
+  "tests/mock/cosmo2017/cmb/planck_2018_pliklite_mock/blmin.dat": "751bef1e0e56abc122d807e80c3c8806",
+  "tests/mock/cosmo2017/cmb/planck_2018_pliklite_mock/bweight.dat": "c71612923ce3f0273944033445c9c519",
+  "tests/mock/cosmo2017/cmb/planck_2018_pliklite_mock/c_matrix_plik_v22.dat": "81f3181ec9c85d7114b3a3cf65d511e2",
+  "tests/mock/cosmo2017/cmb/planck_2018_pliklite_mock/cl_cmb_plik_v22.dat": "c649673b17d144d54577973bcddb3ddd",
+  "tests/mock/cosmo2017/cmb/planck_2018_pliklite_mock/plik_lite_v22.dataset": "1b7533e98d8a3cc0b1a64d2f8de36f9e",
+  "tests/mock/cosmo2017/cmb/planck_2018_pliklite_mock/version.dat": "6654c734ccab8f440ff0825eb443dc7f"
+ },
+ "act_mock_mean_md5": "b30d95344a68c835a17b8ce4192fd49c",
+ "chi2_real_data_at_mock_point": {
+  "act_dr6_cmbonly.PlanckActCut": 219.7812464439843,
+  "act_dr6_cmbonly.ACTDR6CMBonly": 174.70925897374627,
+  "bao.desi_dr2.desi_bao_all": 36.6273500217861
+ },
+ "swap_test_chi2_mock_data_at_mock_point": {
+  "act_dr6_cmbonly.PlanckActCut": 5.76535580862773e-27,
+  "act_dr6_cmbonly.ACTDR6CMBonly": 0.0,
+  "bao.desi_dr2.desi_bao_all": 3.059562027275599e-21
+ },
+ "swap_test_passed": true
+}

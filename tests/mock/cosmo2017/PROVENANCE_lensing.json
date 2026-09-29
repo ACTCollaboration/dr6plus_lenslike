@@ -1,0 +1,33 @@
+{
+ "product": "mock lensing bandpowers, 18 DR6 bins (likelihood band 40<L<1100 = bins 2..13)",
+ "cosmology": "cosmo2017_10K_acc3 (DR6 simulation and normalization fiducial)",
+ "written": "2026-09-29T18:38:29-04:00",
+ "script": "tests/mock/make_mock_lensing.py",
+ "script_md5": "998a18109418516e072597a3f588c6ee",
+ "inputs": {
+  "lenspotential_cls": {
+   "path": "tests/mock/cosmo2017/inputs/cosmo2017_10K_acc3_lenspotentialCls.dat",
+   "md5": "a8293b03926e3687a1fa9c68bd1daf88"
+  },
+  "binning_matrix": {
+   "path": "dr6plus_lenslike/data/v1.0/binning_matrix_act.txt",
+   "md5": "6c8f94dd257020394e9d7f12f0c7ed0b"
+  },
+  "params_ini": {
+   "path": "tests/mock/cosmo2017/inputs/cosmo2017_10K_acc3_params.ini",
+   "md5": "f70b827851598d5f409703cef54e4af9"
+  }
+ },
+ "output": {
+  "path": "tests/mock/cosmo2017/clkk_bandpowers_mock.txt",
+  "md5": "c3dc66b233bb602a54c7fdab4cc83c48"
+ },
+ "check_vs_packaged": {
+  "packaged_file": "dr6plus_lenslike/data/v1.0/clkk_bandpowers_fiducial.txt",
+  "n_bins": 18,
+  "n_bitwise_equal": 10,
+  "max_rel_diff": 2.220446049250313e-16,
+  "passed": true,
+  "input_cls_identical_to_likelihood_copy": true
+ }
+}

@@ -1,0 +1,11 @@
+# cosmo2017 mock point in the chains' parametrization (make_mock_cmb_bao.py);
+# H0 = 67.02393 input, cosmomc_theta derived by CAMB; YHe (BBN) = 0.2457792, sigma8 = 0.821956, rdrag = 147.218383
+ombh2: 0.02219218
+omch2: 0.1203058
+cosmomc_theta: 0.010407344716557772
+logA: 3.068453
+ns: 0.9625356
+tau: 0.06574325
+mnu: 0.06
+A_planck: 1.0
+P_act: 1.0

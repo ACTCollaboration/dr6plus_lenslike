@@ -1,0 +1,15 @@
+# DESI DR2 BAO mock at the cosmo2017 fiducial (tests/mock/make_mock_cmb_bao.py); r_d = 147.218383 Mpc; covariance = real DR2 (desi_gaussian_bao_ALL_GCcomb_cov.txt)
+# [z] [value at z] [quantity]
+0.29500000 8.082817922069e+00 DV_over_rs
+0.51000000 1.354080941053e+01 DM_over_rs
+0.51000000 2.278074949574e+01 DH_over_rs
+0.70600000 1.774716108048e+01 DM_over_rs
+0.70600000 2.019206731695e+01 DH_over_rs
+0.93400000 2.204479797251e+01 DM_over_rs
+0.93400000 1.757838306747e+01 DH_over_rs
+1.32100000 2.813286027305e+01 DM_over_rs
+1.32100000 1.406289253213e+01 DH_over_rs
+1.48400000 3.032627839586e+01 DM_over_rs
+1.48400000 1.287569616559e+01 DH_over_rs
+2.33 8.608198359303e+00 DH_over_rs
+2.33 3.922745662894e+01 DM_over_rs
