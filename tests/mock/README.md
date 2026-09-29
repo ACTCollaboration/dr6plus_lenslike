@@ -3,10 +3,16 @@
 Noiseless mock data vectors for the reference (verification) chains of the DR6+
 lensing likelihood: lensing alone, lensing + BAO, and lensing + primary CMB + BAO.
 Every mock is evaluated at one cosmology, `cosmo2017_10K_acc3`, the fiducial of
-the DR6 lensing simulations and of the lensing normalization; at this cosmology
-the likelihood corrections vanish, since they are linear in C_th - C_fid. This
-file records how each mock was made, from which inputs, and with which theory
-settings, so that the products can be regenerated and checked independently.
+the DR6 lensing simulations and of the lensing normalization, so the mock sky has
+the fiducial CMB spectra C_fid and the mock lensing bandpowers carry no
+normalization or N1 response. This sets to zero only the lens-only Eq. 35
+recentering, M_b (C_data - C_fid), since for the mock sky C_data = C_fid. The likelihood
+corrections themselves stay on: in joint (primary CMB + lensing) runs the theory
+keeps the normalization and N1 correction M_b (C_th - C_fid), which accounts for
+the difference between the sampled cosmology and C_fid at every step of the
+chain and vanishes only at the fiducial point itself. This file records how each
+mock was made, from which inputs, and with which theory settings, so that the
+products can be regenerated and checked independently.
 
 ## Contents
 
@@ -99,7 +105,10 @@ mock_file: <repo>/tests/mock/cosmo2017/clkk_bandpowers_mock.txt
 ```
 
 In lens-only mode with `mock: true` the Eq. 35 recentering is zero (the mock sky
-has the fiducial CMB) and the CMB-marginalized covariance is kept.
+has the fiducial CMB) and the CMB-marginalized covariance is kept. In joint mode
+(`lens_only: false`) nothing changes with `mock: true`: the theory carries the
+normalization and N1 corrections M_b (C_th - C_fid) evaluated at each sampled
+cosmology, with the uninflated covariance, exactly as for data.
 
 ## Primary CMB and BAO
 
@@ -203,7 +212,12 @@ cobaya, with the reference theory block:
 The CMB and BAO residuals come from the cosmomc_theta to H0 round trip (67.02455
 vs 67.02393). The lensing chi2 is a theory-code offset: the lensing mock is the
 2017 CAMB spectrum, while the chains predict C_L^kk with CAMB 1.6.2 at the same
-parameters. In lens-only mode it splits as follows:
+parameters. In joint mode the prediction also includes the correction
+M_b (C_th - C_fid), which at the mock point is small but not zero, because the
+CAMB 1.6.2 spectra C_th differ slightly from the 2017 lensed spectra that define
+C_fid; this, together with the different covariances of the two modes, is why
+the joint chi2 exceeds the lens-only one. In lens-only mode the offset splits as
+follows:
 
 | Theory for the lensing prediction | chi2 variant0 | chi2 optimal |
 |---|---|---|
