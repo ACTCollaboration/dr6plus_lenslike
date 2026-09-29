@@ -1,0 +1,28 @@
+theory: !defaults [../../base_config/class_sz]
+
+likelihood:
+  dr6plus_lenslike.ACTDR6LensLike:
+    variant: dr6plus_fiducial_extended
+    lens_only: true
+    trim_lmax: 2998
+    apply_hartlap: true
+    no_like_corrections: true
+    cov_file: /home/jiaqu/dr6plus_lenslike/products/mock_covmat.npy
+    fg_marg: true
+    # Widened prior: U[-10, 10].
+    params:
+      A_fg:
+        prior:
+          min: -10.0
+          max: 10.0
+        ref: 0.0
+        proposal: 3.0
+        latex: A_\mathrm{fg}
+  # Fiducial DESI DR2 BAO (full tracer set).
+  bao.desi_dr2.desi_bao_all_fd: null
+
+params: !defaults [../../base_config/lcdm_param]
+
+sampler: !defaults [../../base_config/mcmc_sampler]
+
+output: /scratch/jiaqu/chains/fg_marg_test/afg_extended_u10_bao

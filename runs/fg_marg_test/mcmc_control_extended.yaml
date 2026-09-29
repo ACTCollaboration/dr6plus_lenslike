@@ -1,0 +1,16 @@
+theory: !defaults [../../base_config/class_sz]
+
+likelihood:
+  dr6plus_lenslike.ACTDR6LensLike:
+    variant: dr6plus_fiducial_extended
+    lens_only: true
+    trim_lmax: 2998
+    apply_hartlap: true
+    no_like_corrections: true
+    cov_file: /home/jiaqu/dr6plus_lenslike/products/mock_covmat.npy
+
+params: !defaults [../../base_config/lcdm_param]
+
+sampler: !defaults [../../base_config/mcmc_sampler]
+
+output: /scratch/jiaqu/chains/fg_marg_test/control_extended

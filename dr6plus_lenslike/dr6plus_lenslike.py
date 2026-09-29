@@ -103,6 +103,7 @@ def pp_to_kk(clpp,ell):
 def get_corrected_clkk(data_dict,clkk,cltt,clte,clee,clbb,suff='',
                        fid_norm=True, do_N1kk_corr=True, do_N1cmb_corr=True,
                        act_calib=False, no_like_cmb_corrections=False):
+    do_norm_corr = fid_norm  # save bool before fid_norm is overwritten below
     if no_like_cmb_corrections:
         do_norm_corr = False
         do_N1cmb_corr = False
@@ -282,7 +283,9 @@ def load_data(variant, indep=False, ddir=None,
               lens_only=False, analytic_marg=False,
               apply_hartlap=True,like_corrections=True,mock=False,
               nsims_act=796,nsims_planck=400,trim_lmax=2998,scale_cov=None,
-              version=None, act_cmb_rescale=False, act_calib=False,spt_start=0,spt_end=None):
+              version=None, act_cmb_rescale=False, act_calib=False,spt_start=0,spt_end=None,
+              selfcal=False, n_drop_high=None, cov_file=None,
+              fg_marg=False, fg_template_file=None, fg_template_index=9):
     """
     Given a data directory path, this function loads into a dictionary
     the data products necessary for evaluating the DR6 lensing likelihood.
@@ -328,6 +331,17 @@ def load_data(variant, indep=False, ddir=None,
     if not(lens_only) and not(like_corrections):
         warnings.warn("Neither using CMB-marginalized covariance matrix nor including likelihood corrections. Effective covariance may be underestimated.")
 
+    # Self-calibration requires the full likelihood (lens_only=False) because
+    # it propagates calibration deviations through the CMB norm correction,
+    # which is only evaluated when CMB spectra are requested.
+    # In lens_only mode the CMB is analytically marginalised and no CMB
+    # theory spectra exist to calibrate.
+    if selfcal and lens_only:
+        raise ValueError(
+            "selfcal=True is incompatible with lens_only=True. "
+            "Self-calibration requires CMB spectra (full likelihood)."
+        )
+
     d['include_planck'] = include_planck
     d['include_spt'] = include_spt
     d['include_spt_no_planck'] = include_spt_no_planck
@@ -351,7 +365,25 @@ def load_data(variant, indep=False, ddir=None,
         d['fiducial_cl_bb'] = standardize(f_ls,f_bb,trim_lmax)
         d['fiducial_cl_kk'] = standardize(fd_ls,f_kk,trim_lmax)
 
-        
+    if selfcal:
+        from .calibration import load_calibration_weights
+        # Load per-ell noise-coadding weights for the 4 arrays (T and E).
+        # Stored as (4, 5001) arrays; row order: [pa5a, pa5b, pa6a, pa6b].
+        # Used in generic_lnlike() to compute the effective calibration-
+        # induced CMB spectrum change at each ell.
+        d['w_T'], d['w_E'] = load_calibration_weights(ddir)
+
+        # Load response matrix R (18×9).
+        # R[b, k] = d(binned_clkk_b) / d(delta_k), the sensitivity of
+        # lensing bin b to calibration parameter k.
+        # Param order: [c_dipole, c_pa5a, c_pa5b, c_pa6a, c_pa6b,
+        #               p_pa5a, p_pa5b, p_pa6a, p_pa6b]
+        d['response_cal_matrix'] = np.loadtxt(
+            os.path.join(ddir, 'response_cal_matrix.txt')
+        )
+
+    d['selfcal'] = selfcal
+
     # Return data bandpowers, covariance matrix and binning matrix
     if baseline:
         start = 2
@@ -359,6 +391,8 @@ def load_data(variant, indep=False, ddir=None,
     else:
         start = 2
         end = -3
+    if n_drop_high is not None:
+        end = -int(n_drop_high) if n_drop_high > 0 else None
 
     if v is None:
         y = np.loadtxt(f'{ddir}/clkk_bandpowers_act.txt')
@@ -414,6 +448,28 @@ def load_data(variant, indep=False, ddir=None,
         ls = np.arange(binmat.shape[1])
         d['binmat_act'] = standardize(ls,binmat[start:end,:],trim_lmax,extra_dims="xy")
         d['bcents_act'] = bcents[start:end].copy()
+        if selfcal and 'response_cal_matrix' in d:
+            d['response_cal_matrix'] = d['response_cal_matrix'][start:end, :]
+
+        # Foreground bias marginalization: bin the fine-L template once and cache
+        # the bandpower-space vector. A_fg (sampled by Cobaya) multiplies this
+        # vector in generic_lnlike. Only loaded for the ACT-only baseline/extended
+        # variants, since the template was generated for that configuration.
+        if fg_marg:
+            tpath = fg_template_file or f'{ddir}/fg_template_act_baseline.npy'
+            fg_arr = np.load(tpath)
+            if fg_arr.ndim != 2 or fg_arr.shape[0] < fg_template_index + 1:
+                raise ValueError(
+                    f"fg template at {tpath} has unexpected shape {fg_arr.shape}"
+                )
+            # The Agora template is stored as ΔC_L^{φφ}; the likelihood data
+            # vector is C_L^{κκ}. Apply pp_to_kk before binning so the template
+            # is in the same units as bclkk.
+            template_pp = fg_arr[fg_template_index]
+            L_template = np.arange(template_pp.size)
+            template_kk = pp_to_kk(template_pp, L_template)
+            template_trim = template_kk[:d['binmat_act'].shape[1]]
+            d['fg_template_bandpower'] = d['binmat_act'] @ template_trim
 
     if act_cmb_rescale:
         # load A_L_fid / A_L_ACT and standardize it
@@ -503,6 +559,11 @@ def load_data(variant, indep=False, ddir=None,
                 fcov = np.loadtxt(f'{ddir}/cov_clkk_daytime_daylens.txt')
             else:
                 fcov = np.loadtxt(f'{ddir}/covmat_act.txt')
+
+    if cov_file is not None:
+        cov_path = cov_file if os.path.isabs(cov_file) else os.path.join(ddir, cov_file)
+        warnings.warn(f"Overriding default covariance with {cov_path}")
+        fcov = np.load(cov_path) if cov_path.endswith('.npy') else np.loadtxt(cov_path)
 
     d['full_act_cov'] = fcov.copy()
 
@@ -597,7 +658,8 @@ def load_data(variant, indep=False, ddir=None,
     
 
 def generic_lnlike(data_dict,ell_kk,cl_kk,ell_cmb,cl_tt,cl_ee,cl_te,cl_bb,trim_lmax=2998,
-                   return_theory=False,do_norm_corr=True,act_calib=False,no_actlike_cmb_corrections=False):
+                   return_theory=False,do_norm_corr=True,act_calib=False,no_actlike_cmb_corrections=False,
+                   delta_c=None,delta_p=None,A_fg=0.0):
 
     cl_kk_spt = standardize(ell_kk,cl_kk,3100)
     cl_kk = standardize(ell_kk,cl_kk,trim_lmax)
@@ -605,25 +667,102 @@ def generic_lnlike(data_dict,ell_kk,cl_kk,ell_cmb,cl_tt,cl_ee,cl_te,cl_bb,trim_l
     cl_ee = standardize(ell_cmb,cl_ee,trim_lmax)
     cl_bb = standardize(ell_cmb,cl_bb,trim_lmax)
     cl_te = standardize(ell_cmb,cl_te,trim_lmax)
-    
+
+    # ------------------------------------------------------------------
+    # Step 1 note (do_norm_corr / fid_norm inconsistency — do NOT refactor):
+    # get_corrected_clkk() has 'fid_norm=True' in its signature (which is
+    # immediately overwritten by fid_norm = data_dict['fAL...']).  The call
+    # below passes do_norm_corr=do_norm_corr, but 'do_norm_corr' is NOT an
+    # explicit parameter of get_corrected_clkk — it would raise TypeError if
+    # the likelihood_corrections=True path were exercised.  In practice all
+    # tests use likelihood_corrections=False so this latent bug is never hit.
+    # 'fid_norm=True' in the signature is the original do_norm_corr flag whose
+    # name was changed in the function body but not in the parameter list.
+    # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # Self-calibration: compute calibration-induced CMB spectrum changes.
+    # When delta_c/delta_p are provided, the CMB spectra passed to
+    # get_corrected_clkk() are shifted by dC so that the norm correction
+    # accounts for the calibration-induced change in the lensing estimator.
+    # ------------------------------------------------------------------
+    if delta_c is not None:
+        from .calibration import compute_dCl_from_calibration
+        # Retrieve fiducial Cl arrays (already standardized to trim_lmax+2).
+        # These are Cl (not Dl) in muK², as required by compute_dCl_from_calibration.
+        d = data_dict
+        C_TT_fid = d['fiducial_cl_tt']
+        C_EE_fid = d['fiducial_cl_ee']
+        C_TE_fid = d['fiducial_cl_te']
+        w_T = d['w_T']
+        w_E = d['w_E']
+        if delta_p is None:
+            delta_p = np.zeros(4)
+        # The calibration computation operates over ℓ = 0 … N_ell-1.
+        # w_T/w_E have shape (4, 5001), covering ℓ = 0 … 5000.
+        # The fiducial spectra were standardized to trim_lmax+2 (≤ 3000 in
+        # typical use), which may be shorter than w_T.shape[1] = 5001.
+        # Use the minimum so both arrays are consistent.
+        N_ell = min(w_T.shape[1], len(C_TT_fid))
+        dC_TT, dC_EE, dC_TE, dC_BB = compute_dCl_from_calibration(
+            delta_c, delta_p,
+            w_T[:, :N_ell], w_E[:, :N_ell],
+            C_TT_fid[:N_ell], C_EE_fid[:N_ell], C_TE_fid[:N_ell],
+        )
+        # Pad dC arrays to match the standardized spectrum length.
+        pad = len(C_TT_fid) - N_ell
+        if pad > 0:
+            dC_TT = np.append(dC_TT, np.zeros(pad))
+            dC_EE = np.append(dC_EE, np.zeros(pad))
+            dC_TE = np.append(dC_TE, np.zeros(pad))
+            dC_BB = np.append(dC_BB, np.zeros(pad))
+        # Shifted theory spectra: the lensing estimator sees cl_theory + dC
+        # instead of cl_theory, so the norm correction uses the shifted spectra.
+        cl_tt = cl_tt + dC_TT
+        cl_ee = cl_ee + dC_EE
+        cl_te = cl_te + dC_TE
+        cl_bb = cl_bb + dC_BB
+
     d = data_dict
     cinv = d['cinv']
     if d['only_spt']:
         clkk_act = get_corrected_clkk(data_dict,cl_kk,cl_tt,cl_te,cl_ee,cl_bb,
-                                  do_norm_corr=do_norm_corr,act_calib=act_calib,
+                                  fid_norm=do_norm_corr,act_calib=act_calib,
                                   no_like_cmb_corrections=no_actlike_cmb_corrections) if d['likelihood_corrections'] else cl_kk_spt
         bclkk = d['binmat_act'] @ clkk_act
 
     else:
         if d['likelihood_corrections']:
             clkk_act = get_corrected_clkk(data_dict,cl_kk,cl_tt,cl_te,cl_ee,cl_bb,
-                                      do_norm_corr=do_norm_corr,act_calib=act_calib,
+                                      fid_norm=do_norm_corr,act_calib=act_calib,
                                       no_like_cmb_corrections=no_actlike_cmb_corrections)
         elif d.get('analytic_marg', False):
             clkk_act = get_lens_only_corrected_clkk(data_dict, cl_kk)
         else:
             clkk_act = cl_kk
         bclkk = d['binmat_act'] @ clkk_act
+    if delta_c is not None:
+        # T²(δc) rescaling of the reconstructed 4-point clkk per bin.
+        # The lensing estimator is quadratic in the CMB maps, so a fractional
+        # gain change δ in the T map scales the reconstructed power by T² ≈ (1+δ)².
+        # The response matrix R (18×9) gives the linear sensitivity of each
+        # lensing bin to each calibration parameter.
+        # delta_c_full = [0, c_pa5a, c_pa5b, c_pa6a, c_pa6b,
+        #                    p_pa5a, p_pa5b, p_pa6a, p_pa6b]
+        delta_c_full = np.zeros(9)
+        delta_c_full[1:5] = delta_c   # gain deviations
+        delta_c_full[5:9] = delta_p   # pol-efficiency deviations
+        T = 1.0 + d['response_cal_matrix'] @ delta_c_full  # shape (18,)
+        # Apply only to the ACT bins (first nbins_act elements of bclkk).
+        nbins_act = d['binmat_act'].shape[0]
+        bclkk[:nbins_act] = bclkk[:nbins_act] * T**2
+
+    if 'fg_template_bandpower' in d:
+        # Additive foreground bias on the ACT bandpowers: A_fg defaults to 0
+        # so the term vanishes unless the sampler supplies it.
+        nbins_act_local = d['binmat_act'].shape[0]
+        bclkk[:nbins_act_local] = bclkk[:nbins_act_local] + A_fg * d['fg_template_bandpower']
+
     if d['include_planck']:
         clkk_planck = get_corrected_clkk(data_dict,cl_kk,cl_tt,cl_te,cl_ee,cl_bb,'_planck') if d['likelihood_corrections'] else cl_kk
         bclkk = np.append(bclkk, d['binmat_planck'] @ clkk_planck)
@@ -672,20 +811,53 @@ class ACTDR6LensLike(InstallableLikelihood):
     act_cmb_rescale = False
     act_calib = False
 
+    # When True, marginalise over 8 gain/pol-efficiency nuisance parameters.
+    # Requires lens_only=False (CMB spectra must be sampled).
+    selfcal: bool = False
+
+    # When True, marginalise over a single foreground bias amplitude A_fg
+    # (MacCrann et al. 2023). Only valid for variant in {act_baseline, act_extended}.
+    fg_marg: bool = False
+    # Path to the foreground bias template .npy. None → canonical copy in
+    # data/v1.0/fg_template_act_baseline.npy.
+    fg_template_file: str = None
+    # Row index into the (10, 4501) Agora template. Default 9 = total_mv_prh
+    # (bias-hardened MV total, matches DR6 baseline profile hardening).
+    fg_template_index: int = 9
+
     spt_start=0
     spt_end=None
+
+    # Drop n_drop_high trailing bins from the ACT bandpowers/covmat slice.
+    # None preserves the legacy defaults (6 for baseline variants, 3 for extended).
+    n_drop_high = None
+    # Optional override for the ACT covariance matrix file. Absolute path, or
+    # filename relative to the data directory. None uses the variant default.
+    cov_file = None
 
     def initialize(self):
         if self.lens_only: self.no_like_corrections = True
         if self.analytic_marg and not self.lens_only:
             raise ValueError("analytic_marg=True requires lens_only=True")
+        _fg_allowed = (
+            'act_baseline', 'act_extended',
+            'dr6plus_fiducial_baseline', 'dr6plus_fiducial_extended',
+        )
+        if self.fg_marg and self.variant not in _fg_allowed:
+            raise ValueError(
+                f"fg_marg=True only supported for variant in {_fg_allowed}; "
+                f"got '{self.variant}'."
+            )
         if self.lmax<self.trim_lmax: raise ValueError(f"An lmax of at least {self.trim_lmax} is required.")
         self.data = load_data(variant=self.variant,indep=self.indep,lens_only=self.lens_only,
                               analytic_marg=self.analytic_marg,
                               like_corrections=not(self.no_like_corrections),apply_hartlap=self.apply_hartlap,
                               mock=self.mock,nsims_act=self.nsims_act,nsims_planck=self.nsims_planck,
                               trim_lmax=self.trim_lmax,scale_cov=self.scale_cov,version=self.version,
-                              act_cmb_rescale=self.act_cmb_rescale,act_calib=self.act_calib,spt_start=self.spt_start,spt_end=self.spt_end)
+                              act_cmb_rescale=self.act_cmb_rescale,act_calib=self.act_calib,spt_start=self.spt_start,spt_end=self.spt_end,
+                              selfcal=self.selfcal,n_drop_high=self.n_drop_high,cov_file=self.cov_file,
+                              fg_marg=self.fg_marg,fg_template_file=self.fg_template_file,
+                              fg_template_index=self.fg_template_index)
         
         if self.no_like_corrections:
             self.requested_cls = ["pp"]
@@ -703,6 +875,64 @@ class ACTDR6LensLike(InstallableLikelihood):
             ret.update(cobj)
             
         return ret
+
+    def get_allow_agnostic(self):
+        # Only claim unclaimed params when selfcal nuisances (Clens, c_pa*, p_pa*)
+        # need a home. Otherwise leave cosmology routing to the theory
+        # (camb/class_sz), since class_sz is itself agnostic and two agnostic
+        # components collide. For fg_marg, A_fg must be declared under this
+        # likelihood's `params:` block in the YAML so Cobaya routes it here.
+        return bool(self.selfcal)
+
+    @property
+    def _selfcal_params(self):
+        """Cobaya parameter declarations for the 8 calibration nuisances.
+
+        Prior widths are taken from act_dr6_mflike/params_systematics.yaml
+        (cal_dr6_* for gains, calE_dr6_* for pol efficiencies).
+
+        Gains (c_pa5a, c_pa5b, c_pa6a, c_pa6b):
+          Gaussian priors centred at 0 (deviation from fiducial).
+          Scales from cal_dr6_pa5_f090/pa5_f150/pa6_f090/pa6_f150:
+          0.0016, 0.0020, 0.0018, 0.0024.
+
+        Pol efficiencies (p_pa5a, p_pa5b, p_pa6a, p_pa6b):
+          Uniform priors in [-0.1, 0.1] (deviation from 1.0).
+          Derived from calE_dr6_* uniform prior [0.9, 1.1].
+        """
+        return {
+            # Gain deviations: map-level calibration factors (affect T and E).
+            # Gaussian prior; scale from cal_dr6_pa5_f090 in params_systematics.yaml.
+            'c_pa5a': {'prior': {'dist': 'norm', 'loc': 0.0, 'scale': 0.0016},
+                       'ref': 0.0, 'proposal': 0.0008,
+                       'latex': r'\delta c_{\rm pa5a}'},
+            # Scale from cal_dr6_pa5_f150.
+            'c_pa5b': {'prior': {'dist': 'norm', 'loc': 0.0, 'scale': 0.0020},
+                       'ref': 0.0, 'proposal': 0.0010,
+                       'latex': r'\delta c_{\rm pa5b}'},
+            # Scale from cal_dr6_pa6_f090.
+            'c_pa6a': {'prior': {'dist': 'norm', 'loc': 0.0, 'scale': 0.0018},
+                       'ref': 0.0, 'proposal': 0.0009,
+                       'latex': r'\delta c_{\rm pa6a}'},
+            # Scale from cal_dr6_pa6_f150.
+            'c_pa6b': {'prior': {'dist': 'norm', 'loc': 0.0, 'scale': 0.0024},
+                       'ref': 0.0, 'proposal': 0.0012,
+                       'latex': r'\delta c_{\rm pa6b}'},
+            # Pol-efficiency deviations: E-only rescaling (affect TE and EE).
+            # Uniform prior [-0.1, 0.1]; from calE_dr6_* uniform [0.9, 1.1].
+            'p_pa5a': {'prior': {'min': -0.1, 'max': 0.1},
+                       'ref': 0.0, 'proposal': 0.02,
+                       'latex': r'\delta p_{\rm pa5a}'},
+            'p_pa5b': {'prior': {'min': -0.1, 'max': 0.1},
+                       'ref': 0.0, 'proposal': 0.02,
+                       'latex': r'\delta p_{\rm pa5b}'},
+            'p_pa6a': {'prior': {'min': -0.1, 'max': 0.1},
+                       'ref': 0.0, 'proposal': 0.02,
+                       'latex': r'\delta p_{\rm pa6a}'},
+            'p_pa6b': {'prior': {'min': -0.1, 'max': 0.1},
+                       'ref': 0.0, 'proposal': 0.02,
+                       'latex': r'\delta p_{\rm pa6b}'},
+        }
 
     def logp(self, **params_values):
         cl = self.provider.get_Cl(ell_factor=False, units='FIRASmuK2')
@@ -723,11 +953,35 @@ class ACTDR6LensLike(InstallableLikelihood):
             cl_kk = self.get_limber_clkk( **params_values)
         else:
             cl_kk = pp_to_kk(clpp,ell)
-            
-        
+
+        Clens = params_values.get('Clens', 1.0)
+        cl_kk = cl_kk * Clens
+
+        A_fg = params_values.get('A_fg', 0.0)
+
+        if self.selfcal:
+            # Retrieve calibration nuisance params from Cobaya sampler.
+            # These are deviations from the fiducial (0 = no miscalibration).
+            delta_c = np.array([
+                self.provider.get_param('c_pa5a'),
+                self.provider.get_param('c_pa5b'),
+                self.provider.get_param('c_pa6a'),
+                self.provider.get_param('c_pa6b'),
+            ])
+            delta_p = np.array([
+                self.provider.get_param('p_pa5a'),
+                self.provider.get_param('p_pa5b'),
+                self.provider.get_param('p_pa6a'),
+                self.provider.get_param('p_pa6b'),
+            ])
+        else:
+            delta_c = None
+            delta_p = None
+
         logp = generic_lnlike(self.data,ell,cl_kk,ell,cl['tt'],cl['ee'],cl['te'],cl['bb'],self.trim_lmax,
                               do_norm_corr=not(self.act_cmb_rescale),act_calib=self.act_calib,
-                              no_actlike_cmb_corrections=self.no_actlike_cmb_corrections)
+                              no_actlike_cmb_corrections=self.no_actlike_cmb_corrections,
+                              delta_c=delta_c,delta_p=delta_p,A_fg=A_fg)
         self.log.debug(
             f"ACT-DR6-lensing-like lnLike value = {logp} (chisquare = {-2 * logp})")
         return logp

@@ -676,7 +676,184 @@ Using Cov(Cℓ,Cℓ') = Cℓ×Cℓ'×(σAs/As)² (1% As uncertainty):
 
 **Next step**: Re-run chain-based covariance with corrected sqrt formula for both DR6 and DR4 using batch job
 
+## 2026-03-14: Self-Calibration End-to-End Test Configs — COMPLETED
+
+### Run configs created and committed (branch dev)
+- `runs/self_cal_test/evaluate_selfcal_false.yaml`
+- `runs/self_cal_test/evaluate_selfcal_true.yaml`
+- `runs/self_cal_test/mcmc_selfcal_false.yaml`
+- `runs/self_cal_test/mcmc_selfcal_true.yaml`
+- `runs/self_cal_test/cobaya.sh`
+- `runs/self_cal_test/submit_selfcal_false.sh`
+- `runs/self_cal_test/submit_selfcal_true.sh`
+
+### Source fixes committed (commits 5d5ea00, 84c0f1a)
+1. **`dr6plus_lenslike.py`**: `do_norm_corr=` → `fid_norm=` (latent bug fix in `get_corrected_clkk` call)
+2. **`dr6plus_lenslike.py`**: added `Clens = params_values.get('Clens', 1.0); cl_kk = cl_kk * Clens`
+3. **`dr6plus_lenslike.py`**: added `get_allow_agnostic()` returning `True`
+
+### Evaluate test results (2026-03-15) — PASSED
+- Output: `/scratch/jiaqu/chains/selfcal_test/`
+- `chi2__dr6plus_lenslike.ACTDR6LensLike` = **19.729483** in BOTH selfcal_false and selfcal_true
+- mflike chi2 differs (expected: evaluate uses random ref draws for mflike nuisances)
+- **Conclusion**: selfcal=True with all params=0 gives identical lensing loglike to selfcal=False ✓
+
+### MCMC run status (2026-03-15)
+- `mcmc_selfcal_true`: **completed**, Rminus1=0.0097 (~979k steps) — converged
+- `mcmc_selfcal_false`: **still running** (~861k steps, Rminus1=NaN), lock at 21:44
+- `mcmc_selfcal_false.yaml` has uncommitted change: `force: false` → `resume: True`
+
+### Uncommitted change
+- `runs/self_cal_test/mcmc_selfcal_false.yaml`: `resume: True` (user set to resume an interrupted run)
+
+## 2026-03-15: selfcal_linked run created
+
+**Commit**: worker output (see git log)
+
+- `runs/self_cal_test/mcmc_selfcal_linked.yaml` — selfcal=True but c_pa5a/b/c_pa6a/b derived from `cal_dr6_pa5_f090` etc., p_pa5a/b/p_pa6a/b derived from `calE_dr6_pa5_f090` etc.
+- `runs/self_cal_test/submit_selfcal_linked.sh` — SLURM submission for linked run
+- Output: `/scratch/jiaqu/chains/selfcal_test/mcmc_selfcal_linked`
+
+**Design rule (permanent)**: In all future run configs with `selfcal: true`, the 8 selfcal params MUST be derived from the mflike cal params — never independently sampled. Independently sampling them double-counts calibration uncertainty and widens A_lens instead of tightening it.
+
 ## Notes
 - Existing tests in `tests/test_dr6plus_lenslike.py` use mocked data
 - `lens_only=True` currently loads CMB-marginalized covariance and skips likelihood corrections
 - M matrices operate on Cℓ (not Dℓ)
+
+## 2026-06-01: Lensing + DESI DR2 BAO fg-marg runs (manager-direct)
+
+Extend the widened-prior A_fg test by adding fiducial DESI DR2 BAO, to measure the **sigma8** degradation (BAO breaks the sigma8-Omega_m degeneracy that lensing-only leaves open, so sigma8 — not just S8_lens — becomes meaningful). Done directly by manager at user request.
+
+- BAO likelihood: `bao.desi_dr2.desi_bao_all_fd` (fiducial, full tracer set), added to the existing extended class_sz+lensing configs. class_sz already computes background distances (skip_chi/hubble=0); `cobaya-run --test` confirmed the combined model initializes and A_fg routes correctly.
+- Reference for BAO setup: `/home/jiaqu/mnu_de/.agent/project-context.md` (sec "BAO: DESI DR2") and `mnu_de/base/bao_all_fd.yaml`.
+
+| YAML                              | A_fg prior  | Job ID  | output (/scratch/jiaqu/chains/fg_marg_test/) |
+|-----------------------------------|-------------|---------|----------------------------------------------|
+| mcmc_control_extended_bao.yaml    | (no marg)   | 1692859 | control_extended_bao   |
+| mcmc_afg_extended_bao.yaml        | U[-2, 2]    | 1692860 | afg_extended_bao       |
+| mcmc_afg_extended_u5_bao.yaml     | U[-5, 5]    | 1692862 | afg_extended_u5_bao    |
+| mcmc_afg_extended_u10_bao.yaml    | U[-10, 10]  | 1692863 | afg_extended_u10_bao   |
+
+Submitted 2026-06-01 ~14:55. Follow-up: once converged, make the triangle plot (sigma8 vs A_fg) with degradation % in legend, analogous to `notebooks/fg_marg_S825_Afg_triangle.py`.
+
+## 2026-05-21: Foreground bias marginalization (A_fg) — dispatched
+
+### Task
+Add a single nuisance parameter `A_fg` to the lensing likelihood that scales a fiducial foreground bias template added to the theory `clkk` bandpowers. Defensive marginalization following MacCrann et al. 2023 (arXiv:2304.05196).
+
+### Design decisions
+- **Model**: `C_L^model = C_L^κκ(θ) + A_fg · T(L)`, template on theory side.
+- **Default**: `A_fg = 0.0` (opt-in via YAML; existing analyses unchanged).
+- **Variant scope**: `act_baseline` / `act_extended` only; `ValueError` otherwise.
+- **Template choice**: `total_mv_prh` (index 9, bias-hardened MV total) — matches DR6 baseline profile hardening.
+- **Binning**: fine-L template (length 4501) truncated to L=0..lmax-1 and binned via `binning_matrix_act` at load time → cached bandpower-space vector of length `nbins_act`.
+- **Compatible with** `lens_only=True/False` (additive on theory side) and `selfcal=True` (applied after T² rescaling — A_fg is a residual contamination, not a calibration effect).
+- **Class attributes added**: `fg_marg: bool=False`, `fg_template_file: str=None`, `fg_template_index: int=9`.
+
+### Template source
+`/scratch/kaper/fg_dr6plus/agora_coadded_maps/coadded_fgsonly_nonoise_all_fgs_len_fluxcutTrue_50.0mJy_clsubTrue_clmodelcandidatesModelMap_minsnr5.0_psrcnemosubFalse_psrcdorysubTrue_psrcmodelpsrcmodel_minsnr4.0_3000.npy`
+- Shape: `(10, 4501)`, dtype float64
+- Row order: `total_qe, primary_qe, secondary_qe, trispectrum_qe, total_prh, primary_prh, secondary_prh, trispectrum_prh, total_mv_qe, total_mv_prh`
+- Worker copies to `dr6plus_lenslike/data/v1.0/fg_template_act_baseline.npy`
+
+### Dispatched commit scope
+Prompt instructs worker to commit ONLY:
+- `dr6plus_lenslike/dr6plus_lenslike.py` (A_fg additions only — the existing pending diff for forecast infra `n_drop_high`/`cov_file` is *not* part of this task)
+- `dr6plus_lenslike/data/v1.0/fg_template_act_baseline.npy` (copied template)
+- `tests/test_dr6plus_lenslike.py` (5 new tests F–J)
+
+Other pending modified files left untouched by worker:
+- `dr6plus_lenslike/dr6plus_lenslike.py` already has uncommitted forecast infra changes — worker layers A_fg on top and commits both blocks together (acceptable bundling within a single file).
+- `runs/self_cal_test/mcmc_selfcal_{false,linked}.yaml` — explicitly excluded from A_fg commit.
+
+### Open follow-ups (after A_fg lands)
+1. Run an evaluate sanity check at `A_fg = 0` vs `fg_marg=False` to confirm identical loglike.
+2. Run evaluate at `A_fg = 1` to measure the bandpower shift.
+3. Draft an MCMC config with `A_fg ~ U[0, 2]` (separate worker prompt).
+
+## 2026-05-21: A_fg pp→kk unit fix (commit adae9d6)
+
+**Bug**: Agora .npy stores ΔC_L^{φφ}; my first commit added it directly to `bclkk` (C_L^{κκ} units) → bandpower template was ~10¹¹× too small (effectively a no-op). At `A_fg=1` lnlike would have been indistinguishable from `A_fg=0`.
+
+**Fix**: `load_data` applies `pp_to_kk(template, L) = template * (L(L+1))² / 4` on the fine-L template *before* the binning matrix.
+
+**How the bug was caught**: Visual comparison of `template/C_L^{φφ}_fid` vs MacCrann Fig.1: ratio of `-2.75%` at L=1000 matched the Agora-BH curve in φφ units, while ratio against `C_L^{κκ}_fid` was ~10⁻⁷ — clear unit mismatch.
+
+**How tests still passed despite the bug**: The closed-form check in `test_fg_J` (`lnlike(A) - lnlike(0) = r·Σ⁻¹·t - ½ t·Σ⁻¹·t`) is algebraically valid for any cached `t`, so it doesn't catch scale errors. Useful follow-up test: assert `|template_bandpower / clkk_data|` is in `[1e-4, 1e-1]` (right physical scale).
+
+## 2026-05-21: A_fg blind-mode sanity test plan
+
+### Design
+Four chains on fiducial data (no foreground bias injected), all `lens_only=True` for speed:
+| Run | variant | fg_marg | Notes |
+|---|---|---|---|
+| 1 | `dr6plus_fiducial_baseline` | `false` | control |
+| 2 | `dr6plus_fiducial_extended` | `false` | control |
+| 3 | `dr6plus_fiducial_baseline` | `true`  | A_fg ~ U[-2, 2] |
+| 4 | `dr6plus_fiducial_extended` | `true`  | A_fg ~ U[-2, 2] |
+
+### Prior choice
+**Sanity-test prior is U[-2, 2]** (not the spec's production U[0, 2]). Reasons:
+1. Mode is interior, not on a boundary — visually unambiguous.
+2. Posterior mean recovers 0 on fiducial-as-data → no "data weak, prior dragging" caveat to explain.
+3. If a future injection test recovers the wrong sign, U[-2, 2] surfaces it immediately; U[0, 2] hides it at the boundary.
+
+### Variant-guard change
+`fg_marg=True` currently requires `variant in {'act_baseline', 'act_extended'}`. The blind test needs `dr6plus_fiducial_baseline`/`_extended`. The Agora template + M matrices apply equally to fiducial-data variants (same binning matrix and lensing reconstruction config), so widening is safe.
+
+**New allowed set**: `{'act_baseline', 'act_extended', 'dr6plus_fiducial_baseline', 'dr6plus_fiducial_extended'}`.
+
+### Expected from data (lens_only=True, baseline)
+- `σ(A_fg) ≈ 7` (likelihood-only). Data weakly constraining.
+- With `U[-2, 2]`: posterior mode at 0, mean ≈ 0, width ≈ prior width (~1.15).
+- Cosmology shifts: `≲ 0.1σ` between control and marg runs.
+
+### Reference paths
+- Fiducial bandpowers: `dr6plus_lenslike/data/v1.0/clkk_act_fiducial.txt` (loaded automatically by `dr6plus_fiducial_*` variant)
+- Base templates: `base_config/lensing_fiducial.yaml`, `base_config/lcdm_param.yaml`, `base_config/mcmc_sampler.yaml`, `base_config/class_sz.yaml`
+- Existing analogue: `runs/self_cal_test/` (selfcal MCMC scaffolding)
+- Output dir: `/scratch/jiaqu/chains/fg_marg_test/`
+
+## 2026-05-21: A_fg blind sanity scaffolding committed and dispatched
+
+### Commits
+- `7e1c612` Add A_fg foreground bias marginalization (+ bundled forecast infra n_drop_high/cov_file)
+- `adae9d6` Fix A_fg template units: apply pp_to_kk before binning
+- `ab7555d` Add A_fg blind sanity test scaffolding (widened variant guard, runs/fg_marg_test/)
+
+### SLURM jobs submitted (1h walltime each)
+| Job ID  | Script                          | YAML                            |
+|---------|---------------------------------|---------------------------------|
+| 1619613 | submit_control_baseline.sh      | mcmc_control_baseline.yaml      |
+| 1619614 | submit_control_extended.sh      | mcmc_control_extended.yaml      |
+| 1619615 | submit_afg_baseline.sh          | mcmc_afg_baseline.yaml          |
+| 1619616 | submit_afg_extended.sh          | mcmc_afg_extended.yaml          |
+
+Chains write to `/scratch/jiaqu/chains/fg_marg_test/<run_name>`. Submission queued at 2026-05-21 12:40-ish.
+
+### Post-completion checklist
+1. **A_fg posterior**: read out 1D marginal from `afg_baseline` and `afg_extended`. Verify mode ≈ 0 (interior of U[-2,2]) and mean ≈ 0. If mode pegs at ±2, the chain is broken (or A_fg has a sign bug we missed).
+2. **Cosmology comparison**: compare 1D marginals `control_baseline` vs `afg_baseline` (same for extended). Expect:
+   - Means shift ≲ 0.1σ.
+   - σ(σ8), σ(Ωm h²), σ(H0) slightly inflated under marg.
+3. **σ(A_fg) from chain**: should be close to the analytic prediction (~0.58 with U[-2,2] dominating ~7 likelihood width → posterior ≈ prior in width).
+4. **Cosmology error inflation table**: write a small comparison plot to `notebooks/fg_marg_comparison.png` (separate worker prompt after chains finish).
+
+## 2026-05-28: Widened-prior extended A_fg runs (manager-direct, user override)
+
+Collaborators were surprised S8_lens degrades so little under `A_fg ~ U[-2,2]`. User asked to test wider priors on the extended cosmology. Done directly by manager at user's explicit instruction ("DISPATCH AND DO THEM NOW").
+
+New files (copies of `mcmc_afg_extended.yaml`, identical except prior/proposal/output):
+| YAML                          | A_fg prior  | proposal | output dir                                  | Job ID  |
+|-------------------------------|-------------|----------|---------------------------------------------|---------|
+| mcmc_afg_extended_u5.yaml     | U[-5, 5]    | 1.5      | /scratch/jiaqu/chains/fg_marg_test/afg_extended_u5  | 1661090 |
+| mcmc_afg_extended_u10.yaml    | U[-10, 10]  | 3.0      | /scratch/jiaqu/chains/fg_marg_test/afg_extended_u10 | 1661091 |
+
+Plus `submit_afg_extended_u5.sh` / `submit_afg_extended_u10.sh`. Variant `dr6plus_fiducial_extended`, `lens_only`, `mock_covmat.npy` — unchanged so they compare apples-to-apples against the U[-2,2] extended run. Proposal widened from 0.5 since both priors are prior-dominated (likelihood-only σ(A_fg)≈7). Submitted 2026-05-28.
+
+### Open follow-ups
+- Compare S8_lens 1D marginal across U[-2,2] / U[-5,5] / U[-10,10] extended runs once chains finish (this answers the collaborators' question).
+- Selfcal mock test fix (pre-existing test_selfcal_C/D/E failures from `(18,9)` vs `(10,9)` `response_cal_matrix` shape mismatch — unrelated to A_fg).
+- Commit `.agent/manager-status.md` history updates from this session.
+- The runs/self_cal_test/mcmc_selfcal_{false,linked}.yaml WIP edits are still uncommitted (intentionally — out of scope for this task).

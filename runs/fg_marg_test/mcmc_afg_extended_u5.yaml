@@ -1,0 +1,28 @@
+theory: !defaults [../../base_config/class_sz]
+
+likelihood:
+  dr6plus_lenslike.ACTDR6LensLike:
+    variant: dr6plus_fiducial_extended
+    lens_only: true
+    trim_lmax: 2998
+    apply_hartlap: true
+    no_like_corrections: true
+    cov_file: /home/jiaqu/dr6plus_lenslike/products/mock_covmat.npy
+    fg_marg: true
+    # Declare A_fg here (NOT at the top level) so Cobaya routes it to this
+    # likelihood. Otherwise class_sz (agnostic) and us would collide.
+    # Widened prior: U[-5, 5] to probe S8_lens degradation vs the U[-2, 2] run.
+    params:
+      A_fg:
+        prior:
+          min: -5.0
+          max: 5.0
+        ref: 0.0
+        proposal: 1.5
+        latex: A_\mathrm{fg}
+
+params: !defaults [../../base_config/lcdm_param]
+
+sampler: !defaults [../../base_config/mcmc_sampler]
+
+output: /scratch/jiaqu/chains/fg_marg_test/afg_extended_u5
