@@ -1,0 +1,16 @@
+theory: !defaults [../base_config/class_sz]
+
+likelihood:
+  dr6plus_lenslike.ACTDR6LensLike:
+    variant: daytime_2026_extended
+    lens_only: true
+  bao.desi_dr2.desi_bao_all:
+  
+params: !defaults [../base_config/lcdm_param]
+
+sampler: !defaults [../base_config/mcmc_sampler]
+
+output: /scratch/iabril/chains/daytime_2026_wbao_nsims768/
+
+force: True #  False
+

@@ -1,0 +1,14 @@
+theory: !defaults [../base_config/class_sz]
+
+likelihood:
+  dr6plus_lenslike.ACTDR6LensLike:
+    variant: daytime_fiducial_highl
+    lens_only: true
+
+params: !defaults [../base_config/lcdm_param]
+
+sampler: !defaults [../base_config/mcmc_sampler]
+
+output: /scratch/iabril/chains/daytime_baseline_daylens_Lhigh/
+
+force: True #  False

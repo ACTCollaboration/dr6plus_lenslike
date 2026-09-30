@@ -1,0 +1,21 @@
+classy_szfast.classy_sz.classy_sz:
+  use_class_sz_fast_mode: 1
+  lensing_lkl: ACT
+  path: null
+  stop_at_error: true
+  extra_args:
+    modes: s,t
+    output: tCl,lCl,pCl
+    skip_background_and_thermo: 1 
+    skip_pkl: 1
+    skip_pknl: 1
+    skip_chi: 0
+    skip_hubble: 0
+    skip_sigma8_and_der: 0
+    skip_sigma8_at_z: 0
+    k_pivot : 0.05
+    N_ncdm : 1
+    N_ur : 2.0328
+    m_ncdm: 0.06
+    cosmo_model: 0
+    class_sz_verbose: 0

@@ -1,0 +1,16 @@
+theory: !defaults [../base_config/class_sz]
+
+likelihood:
+  dr6plus_lenslike.ACTDR6LensLike:
+    variant: daytime_fiducial_baseline
+    lens_only: true
+  bao.desi_dr2.desi_bao_all:
+  
+params: !defaults [../base_config/lcdm_param]
+
+sampler: !defaults [../base_config/mcmc_sampler]
+
+output: /scratch/iabril/chains/daytime_baseline_daylens_wbao_nsims792/
+
+force: True #  False
+

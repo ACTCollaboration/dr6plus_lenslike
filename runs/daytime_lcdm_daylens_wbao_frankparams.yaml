@@ -1,0 +1,40 @@
+theory: !defaults [../base_config/class_sz]
+
+likelihood:
+    dr6plus_lenslike.ACTDR6LensLike:
+        lmax: 4000
+        mock: false
+        nsims_act: 800.0
+        nsims_planck: 400.0
+        no_like_corrections: true
+        no_actlike_cmb_corrections: false
+        lens_only: true
+        trim_lmax: 2998
+        variant: daytime_fiducial_baseline
+        indep: false
+        apply_hartlap: true
+        limber: false
+        nz: 100
+        kmax: 10
+        zmax: null
+        scale_cov: null
+        varying_cmb_alens: false
+        version: null
+        act_cmb_rescale: false
+        act_calib: false
+        spt_start: 0
+        spt_end: null
+        type: []
+        speed: -1
+        stop_at_error: true
+        input_params: []
+        output_params: []
+    bao.desi_dr2.desi_bao_all: null
+
+params: !defaults [../base_config/lcdm_param]
+
+sampler: !defaults [../base_config/mcmc_sampler]
+
+output: /scratch/iabril/chains/daytime_baseline_daylens_wbao_frankparams/
+
+force: True #  False
