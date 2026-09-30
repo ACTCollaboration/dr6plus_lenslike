@@ -135,6 +135,9 @@ data/
 *.npz
 *.fits
 
+# Verification configs written for a local clone (runs/verification/setup_paths.py)
+runs/verification/local/
+
 # IDE files
 .vscode/
 .idea/

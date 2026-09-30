@@ -1,0 +1,10 @@
+# Paths for the verification configs. Set once, then run
+#     python runs/verification/setup_paths.py
+# which writes ready-to-run configs to runs/verification/local/ (not tracked).
+# Environment variables ($SCRATCH, $USER) and ~ are expanded.
+
+# Your clone of dr6plus_lenslike; auto = the clone this file is in.
+REPO_ROOT: auto
+
+# Directory the chains are written to (one subdirectory per config).
+OUTPUT_ROOT: $SCRATCH/chains/verification

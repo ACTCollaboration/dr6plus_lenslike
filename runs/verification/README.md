@@ -3,12 +3,12 @@
 Before running the Legacy extended-model chains, reproduce these reference chains.
 Every data vector is a noiseless mock at one known cosmology, the
 `cosmo2017_10K_acc3` fiducial of the DR6 lensing simulations, so a correct setup
-recovers it: in our runs every constrained parameter lies within 0.23 sigma of its
-input value.
+recovers it: in our runs every constrained parameter lies within a quarter sigma
+of its input value.
 
 ## What to run
 
-| config (`yaml/`) | data | theory |
+| config | data | theory |
 |---|---|---|
 | `{actbase,act_planck}_lens_classsz` | DR6+ lensing | class_sz |
 | `{actbase,act_planck}_lensbao_classsz` | DR6+ lensing + DESI DR2 BAO | class_sz |
@@ -20,12 +20,37 @@ CAMB cross-check of the class_sz chains (`*_lens_camb`, `*_lensbao_camb`) and th
 joint chain with Sum m_nu free (`*_lenscmbbao_mnu_camb`); these need not be
 reproduced.
 
-From the repository root, set your clone and output paths, then run each config
-with cobaya (the yaml files are the ones we ran, with the two paths replaced by
-placeholders):
+The files in `yaml/` are the configs we ran, with the clone and output paths as
+placeholders. `setup_paths.py` fills in the two paths from `paths.yaml` and writes
+ready-to-run configs to `local/` (not tracked; rerun after a pull):
 
-    sed -i "s|REPO_ROOT|$PWD|g; s|OUTPUT_ROOT|/scratch/$USER/chains/verification|g" runs/verification/yaml/*.yaml
-    mpirun -n 8 cobaya-run -r runs/verification/yaml/actbase_lens_classsz.yaml
+    python runs/verification/setup_paths.py
+    mpirun -n 8 cobaya-run -r runs/verification/local/actbase_lens_classsz.yaml
+
+The defaults in `paths.yaml` need no editing on a machine that defines `$SCRATCH`:
+`REPO_ROOT: auto` is the clone the file is in, and `OUTPUT_ROOT` is
+`$SCRATCH/chains/verification`. Edit `OUTPUT_ROOT` only to write the chains
+elsewhere, or if `$SCRATCH` is not set (the script then stops with an error). For
+example, on Trillium with the clone in `/home/jiaqu/dr6plus_lenslike_verification`
+the defaults give
+
+    REPO_ROOT   = /home/jiaqu/dr6plus_lenslike_verification
+    OUTPUT_ROOT = /scratch/jiaqu/chains/verification
+    wrote 12 configs to /home/jiaqu/dr6plus_lenslike_verification/runs/verification/local/
+
+and the chain of `actbase_lens_classsz` is written to
+`/scratch/jiaqu/chains/verification/actbase_lens_classsz/`.
+
+When the chains have finished, compare them with ours:
+
+    python runs/verification/compare_run.py
+
+For every config with a chain under `OUTPUT_ROOT` it checks convergence, the
+distance D^2 of the posterior means from ours in units of our posterior
+covariance, and the posterior widths, and prints PASS, WARN or FAIL (PASS: D^2 <=
+0.1 and widths within 5 per cent; two independent halves of our own runs agree to
+D^2 <= 0.007 and 2.5 per cent). If all six reference chains PASS, the setup is
+ready for the Legacy runs.
 
 This needs classy_szfast (class_sz), CAMB built with CosmoRec and
 `act_dr6_cmbonly` (DR6-ACT-lite). On one Trillium node (8 MPI chains of 24
