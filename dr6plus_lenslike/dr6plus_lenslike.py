@@ -163,13 +163,19 @@ def get_corrected_clkk(data_dict,clkk,cltt,clte,clee,clbb,suff='',
     return nclkk
 
 
-def get_binned_cmb_correction(data_dict, cltt, clte, clee, clbb, act_calib=False):
+def get_binned_cmb_correction(data_dict, cltt, clte, clee, clbb, act_calib=False,
+                              A_cal=None, P_cal=None):
     """
     CMB correction of a per-variant (per_variant_corrs) bandpower vector:
     sum_X Mb^X @ (C^X_th / cal - C^X_fid), X = TT, EE, TE, with Mb the
     variant's binned response (norm + N1, ph normalization, N1-deconvolved
     form). cal follows get_corrected_clkk (act_calib: mean TT ratio to the
     fiducial over 1000 < ell < 2000). Added to binmat @ clkk.
+
+    A_cal (with P_cal, default 1) switches to the MAP frame: the QE
+    normalization responds to the spectrum of the calibrated map, so C^X_th
+    is replaced by C^TT/A^2, C^TE/(A^2 P), C^EE/(A^2 P^2), C^BB/(A^2 P^2),
+    the ACT-lite convention (act_dr6_cmbonly divides its theory the same way).
     """
     cl_dict = {'tt': cltt, 'te': clte, 'ee': clee, 'bb': clbb}
     if act_calib:
@@ -180,9 +186,15 @@ def get_binned_cmb_correction(data_dict, cltt, clte, clee, clbb, act_calib=False
         cal_fact = (ocl[sel] / fcl[sel]).mean()
     else:
         cal_fact = 1.0
+    if A_cal is None:
+        frame = {'tt': 1.0, 'te': 1.0, 'ee': 1.0, 'bb': 1.0}
+    else:
+        P = 1.0 if P_cal is None else P_cal
+        A2 = A_cal * A_cal
+        frame = {'tt': A2, 'te': A2 * P, 'ee': A2 * P * P, 'bb': A2 * P * P}
     corr = 0.
     for i, s in enumerate(data_dict['Mb_specs']):
-        cldiff = (cl_dict[s] / cal_fact) - data_dict[f'fiducial_cl_{s}']
+        cldiff = (cl_dict[s] / (cal_fact * frame[s])) - data_dict[f'fiducial_cl_{s}']
         corr = corr + data_dict['Mb_binned'][i] @ cldiff
     return corr
 
@@ -859,7 +871,7 @@ def load_data(variant, indep=False, ddir=None,
 
 def generic_lnlike(data_dict,ell_kk,cl_kk,ell_cmb,cl_tt,cl_ee,cl_te,cl_bb,trim_lmax=2998,
                    return_theory=False,do_norm_corr=True,act_calib=False,no_actlike_cmb_corrections=False,
-                   delta_c=None,delta_p=None,A_fg=0.0):
+                   delta_c=None,delta_p=None,A_fg=0.0,A_cal=None,P_cal=None):
 
     cl_kk_spt = standardize(ell_kk,cl_kk,3100)
     cl_kk = standardize(ell_kk,cl_kk,trim_lmax)
@@ -937,7 +949,8 @@ def generic_lnlike(data_dict,ell_kk,cl_kk,ell_cmb,cl_tt,cl_ee,cl_te,cl_bb,trim_l
         bclkk = d['binmat_act'] @ cl_kk
         if not no_actlike_cmb_corrections:
             bclkk = bclkk + get_binned_cmb_correction(data_dict, cl_tt, cl_te, cl_ee, cl_bb,
-                                                      act_calib=act_calib)
+                                                      act_calib=act_calib,
+                                                      A_cal=A_cal, P_cal=P_cal)
     elif 'lens_only_delta' in d:
         # per-variant products, lens_only analytic_marg: B clkk + Eq. 35 recentering
         bclkk = d['binmat_act'] @ cl_kk + d['lens_only_delta']
@@ -1020,6 +1033,10 @@ class ACTDR6LensLike(InstallableLikelihood):
     version = None
     act_cmb_rescale = False
     act_calib = False
+    # Map-frame CMB correction (per_variant_corrs, full mode): apply Mb to
+    # C^X_th / (A_act^2 P_act^n) - C^X_fid, the spectrum of the calibrated map,
+    # with A_act and P_act requested from the ACT CMB likelihood's parameters.
+    map_frame_cal: bool = False
 
     # When True, marginalise over 8 gain/pol-efficiency nuisance parameters.
     # Requires lens_only=False (CMB spectra must be sampled).
@@ -1073,7 +1090,16 @@ class ACTDR6LensLike(InstallableLikelihood):
                               mock_file=self.mock_file,
                               fg_marg=self.fg_marg,fg_template_file=self.fg_template_file,
                               fg_template_index=self.fg_template_index)
-        
+
+        if self.map_frame_cal:
+            if not self.data.get('binned_corr', False):
+                raise ValueError("map_frame_cal=True requires a per-variant variant "
+                                 f"({', '.join(per_variant_corrs)}) with likelihood corrections "
+                                 "(lens_only=False, no_like_corrections=False).")
+            if self.act_calib or self.selfcal:
+                raise ValueError("map_frame_cal=True cannot be combined with act_calib or "
+                                 "selfcal: each is a calibration treatment of the CMB correction.")
+
         if self.no_like_corrections:
             self.requested_cls = ["pp"]
         else:
@@ -1088,7 +1114,10 @@ class ACTDR6LensLike(InstallableLikelihood):
         if self.limber:
             cobj = get_camb_lens_obj(self.nz,self.kmax,self.zmax)
             ret.update(cobj)
-            
+
+        if self.map_frame_cal:
+            ret.update({'A_act': None, 'P_act': None})
+
         return ret
 
     def get_allow_agnostic(self):
@@ -1193,10 +1222,16 @@ class ACTDR6LensLike(InstallableLikelihood):
             delta_c = None
             delta_p = None
 
+        if self.map_frame_cal:
+            A_cal = self.provider.get_param('A_act')
+            P_cal = self.provider.get_param('P_act')
+        else:
+            A_cal = P_cal = None
+
         logp = generic_lnlike(self.data,ell,cl_kk,ell,cl['tt'],cl['ee'],cl['te'],cl['bb'],self.trim_lmax,
                               do_norm_corr=not(self.act_cmb_rescale),act_calib=self.act_calib,
                               no_actlike_cmb_corrections=self.no_actlike_cmb_corrections,
-                              delta_c=delta_c,delta_p=delta_p,A_fg=A_fg)
+                              delta_c=delta_c,delta_p=delta_p,A_fg=A_fg,A_cal=A_cal,P_cal=P_cal)
         self.log.debug(
             f"ACT-DR6-lensing-like lnLike value = {logp} (chisquare = {-2 * logp})")
         return logp

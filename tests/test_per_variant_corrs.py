@@ -12,6 +12,8 @@ N1-deconvolved form).
     and lnlike at the fiducial clkk is zero.
  3. Full mode: base covariance (not CMB marginalized); the CMB term vanishes
     at the fiducial CMB and equals Mb @ (C - C_fid) for a perturbed CMB.
+ 4. Map frame (A_cal, P_cal): A = P = 1 reproduces the sky frame; otherwise the
+    theory equals the sky-frame one fed C^TT/A^2, C^TE/(A^2 P), C^EE/(A^2 P^2).
 
 Run with the cluster module environment loaded (see repo README).
 """
@@ -100,3 +102,26 @@ def test_full_mode(V):
     Mb = np.load(os.path.join(LC, "response_binned.npz"))["Mb"][0][BAND]
     exp = Mb[:, :TRIM + 1] @ (0.02 * cl["tt"][:TRIM + 1])
     assert np.allclose(th1 - th0, exp, rtol=1e-8)
+
+
+@pytest.mark.parametrize("V", VARIANTS)
+def test_map_frame_cal(V):
+    d = load_data(V, lens_only=False, like_corrections=True, mock=True)
+    ell, cl, Lk, kk = _fid_cls()
+    args = (d, Lk, kk, ell, cl["tt"], cl["ee"], cl["te"], cl["bb"])
+    _, th_sky = generic_lnlike(*args, return_theory=True)
+    # A = P = 1: the map frame is the sky frame
+    _, th_1 = generic_lnlike(*args, return_theory=True, A_cal=1.0, P_cal=1.0)
+    assert np.array_equal(th_1, th_sky)
+    # A, P != 1: same as the sky-frame likelihood fed C^TT/A^2, C^TE/(A^2 P), C^EE/(A^2 P^2)
+    A, P = 1.003, 0.99
+    _, th_map = generic_lnlike(*args, return_theory=True, A_cal=A, P_cal=P)
+    _, th_ref = generic_lnlike(d, Lk, kk, ell, cl["tt"] / A**2, cl["ee"] / (A**2 * P**2),
+                               cl["te"] / (A**2 * P), cl["bb"] / (A**2 * P**2), return_theory=True)
+    assert np.allclose(th_map, th_ref, rtol=1e-12)
+    # a calibration shift at the fiducial CMB moves the theory by Mb @ (1/A^2 - 1) C_fid (P = 1)
+    _, th_A = generic_lnlike(*args, return_theory=True, A_cal=A, P_cal=1.0)
+    exp = sum(d["Mb_binned"][i] @ ((1 / A**2 - 1) * d[f"fiducial_cl_{s}"])
+              for i, s in enumerate(d["Mb_specs"]))
+    assert np.allclose(th_A - th_sky, exp, rtol=1e-10)
+    assert np.all(th_A < th_sky)
