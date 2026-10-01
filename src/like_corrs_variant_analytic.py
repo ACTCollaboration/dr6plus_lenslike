@@ -39,7 +39,7 @@ sys.path.insert(0, os.path.join(REPO, "src"))
 import pact_cmbmarg_actplanck as pm                      # noqa: E402
 import generate_lens_only_const as glc                   # noqa: E402
 
-D = os.path.join(REPO, "dr6plus_lenslike", "data", "v1.0")
+D = os.path.join(REPO, "src", "dr6plus_lenslike", "data", "v1.0")
 LC_ROOT = "/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/like_corrs"
 CONFIGS = "/home/jiaqu/DR6plus_lensing/like_corrs/configs.yaml"
 DAL = {"TT": 0, "EE": 1, "BB": 2, "TE": 3}

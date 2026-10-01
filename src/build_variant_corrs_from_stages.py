@@ -47,7 +47,7 @@ sys.path.insert(0, os.path.join(REPO, 'src'))
 import pact_cmbmarg_actplanck as pm          # noqa: E402
 import like_corrs_variant_analytic as lva    # noqa: E402
 
-DDIR = os.path.join(REPO, 'dr6plus_lenslike', 'data', 'v1.0')
+DDIR = os.path.join(REPO, 'src', 'dr6plus_lenslike', 'data', 'v1.0')
 PKG = '/project/rrg-rbond-ac/jiaqu/dr6plus_lensing_variants/bandpowers_bpshift_corrected'
 SACC = '/scratch/jiaqu/likelihood_data/data/ACTDR6CMBonly/v1.0/dr6_data_cmbonly.fits'
 SPECS = ('TT', 'EE', 'TE')

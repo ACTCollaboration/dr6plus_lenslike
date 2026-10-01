@@ -26,7 +26,7 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.normpath(os.path.join(HERE, "..", ".."))
-DDIR = os.path.join(REPO, "dr6plus_lenslike", "data", "v1.0")
+DDIR = os.path.join(REPO, "src", "dr6plus_lenslike", "data", "v1.0")
 OUT = os.path.join(HERE, "cosmo2017")
 
 INPUTS = {

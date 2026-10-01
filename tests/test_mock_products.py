@@ -28,11 +28,11 @@ import numpy as np
 import pytest
 
 REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-sys.path.insert(0, REPO_ROOT)
+sys.path.insert(0, os.path.join(REPO_ROOT, "src"))
 
 from dr6plus_lenslike.dr6plus_lenslike import load_data, generic_lnlike  # noqa: E402
 
-DDIR = os.path.join(REPO_ROOT, "dr6plus_lenslike", "data", "v1.0")
+DDIR = os.path.join(REPO_ROOT, "src", "dr6plus_lenslike", "data", "v1.0")
 MOCK = os.path.join(REPO_ROOT, "tests", "mock", "cosmo2017", "clkk_bandpowers_mock.txt")
 VARIANTS = ("dr6plus_variant0", "dr6plus_optimal", "actbase", "act_planck")
 BAND = np.s_[2:-4]

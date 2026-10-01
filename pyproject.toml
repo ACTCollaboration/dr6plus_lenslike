@@ -57,8 +57,11 @@ Documentation = "https://dr6plus-lenslike.readthedocs.io/"
 
 [project.scripts]
 
+[tool.setuptools]
+package-dir = {"" = "src"}
+
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["src"]
 include = ["dr6plus_lenslike*"]
 
 [tool.setuptools.package-data]

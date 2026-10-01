@@ -39,7 +39,7 @@ import datetime
 import numpy as np
 import sacc
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
+DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                         "dr6plus_lenslike", "data", "v1.0")
 DATA_DIR = os.path.normpath(DATA_DIR)
 LIKE_CORRS = os.path.join(DATA_DIR, "like_corrs")

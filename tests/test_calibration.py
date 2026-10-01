@@ -6,7 +6,7 @@ import pytest
 
 from dr6plus_lenslike.calibration import load_calibration_weights, compute_dCl_from_calibration
 
-DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "dr6plus_lenslike", "data", "v1.0")
+DATA_DIR = os.path.join(os.path.dirname(__file__), "..", "src", "dr6plus_lenslike", "data", "v1.0")
 DATA_DIR = os.path.normpath(DATA_DIR)
 
 

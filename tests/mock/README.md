@@ -35,11 +35,11 @@ are not mocked: the verification runs use the real low-ell data.
 **Status.** The lensing-likelihood side referred to below (the `mock_file` option,
 the mock-mode Eq. 35 change, the per-variant corrections and the variants `ACTbase`
 = DR6plus_lensing 9h and `ACT_Planck` = 9a, whose products in
-`dr6plus_lenslike/data/v1.0/like_corrs_<variant>/` are built by
+`src/dr6plus_lenslike/data/v1.0/like_corrs_<variant>/` are built by
 `src/build_variant_corrs_from_stages.py`) and `tests/test_mock_products.py` are in
 the repository. The measured bandpowers of the blinded variants are not; mock runs
 never read them. Joint (lens + CMB) runs also need the DR6 lensing likelihood's
-`dr6plus_lenslike/data/v1.0/like_corrs/` directory (fiducial spectra), which is not
+`src/dr6plus_lenslike/data/v1.0/like_corrs/` directory (fiducial spectra), which is not
 in this repository. The two generators need only the files in this folder and the
 tracked `binning_matrix_act.txt` / `clkk_bandpowers_fiducial.txt`.
 
@@ -50,7 +50,7 @@ All four files are verbatim copies (md5 identical to their sources):
 | File | md5 | Source |
 |---|---|---|
 | `cosmo2017_10K_acc3_params.ini` | f70b827851598d5f409703cef54e4af9 | `actsims/data/cosmo2017_10K_acc3_params.ini` |
-| `cosmo2017_10K_acc3_lenspotentialCls.dat` | a8293b03926e3687a1fa9c68bd1daf88 | `dr6plus_lenslike/data/v1.0/like_corrs/` (a link to the ACT DR6 lensing likelihood data, `act_dr6_spt_lenslike/data/v1.2/like_corrs/`) |
+| `cosmo2017_10K_acc3_lenspotentialCls.dat` | a8293b03926e3687a1fa9c68bd1daf88 | `src/dr6plus_lenslike/data/v1.0/like_corrs/` (a link to the ACT DR6 lensing likelihood data, `act_dr6_spt_lenslike/data/v1.2/like_corrs/`) |
 | `act_dr6_theory_camb.yaml` | bb2bea5ed1a121349074193ae0088094 | DR6-ACT-lite `yamls/theories/camb.yaml`, commit 0e0cd2c |
 | `act_dr6_likelihood_p_act_lite.yaml` | d553cc8fef2391838511ae500bc963f5 | DR6-ACT-lite `yamls/likelihoods/p_act_lite.yaml`, commit 0e0cd2c |
 
@@ -90,13 +90,13 @@ lensing simulations and normalization.
     C_L^kk = PP_L x 2 pi / 4 = [L(L+1)]^2 C_L^phiphi / 4
     b_i    = sum_{L=0}^{2999} B_iL C_L^kk
 
-with B the DR6 binning matrix `dr6plus_lenslike/data/v1.0/binning_matrix_act.txt`
+with B the DR6 binning matrix `src/dr6plus_lenslike/data/v1.0/binning_matrix_act.txt`
 (18 x 3000, column j is L = j; md5 6c8f94dd257020394e9d7f12f0c7ed0b). The sums
 use `math.fsum` (exactly rounded), so the output does not depend on the BLAS
 library or the thread count. The likelihood uses bins 2 to 13 (40 < L < 1100).
 
 **Check.** The mock (md5 c3dc66b233bb602a54c7fdab4cc83c48) reproduces the
-packaged `dr6plus_lenslike/data/v1.0/clkk_bandpowers_fiducial.txt`: 10 of the 18
+packaged `src/dr6plus_lenslike/data/v1.0/clkk_bandpowers_fiducial.txt`: 10 of the 18
 bins bit for bit and the other 8 to one unit in the last place (2.2e-16
 relative). An exactly rounded sum cannot do better, so the residual comes from
 the summation order of the original, not from the content.

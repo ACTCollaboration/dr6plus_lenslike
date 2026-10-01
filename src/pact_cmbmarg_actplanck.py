@@ -37,7 +37,7 @@ import numpy as np
 from scipy.io import FortranFile
 
 REPO = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-D = os.path.join(REPO, "dr6plus_lenslike", "data", "v1.0")
+D = os.path.join(REPO, "src", "dr6plus_lenslike", "data", "v1.0")
 LC = os.path.join(D, "like_corrs")
 PL = "/scratch/jiaqu/likelihood_data/data/planck_2018_pliklite_native"
 # public ACT DR6 CMB-only release v1.0 (what act_dr6_cmbonly installs; the published chains condition on

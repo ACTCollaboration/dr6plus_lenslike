@@ -24,11 +24,11 @@ import numpy as np
 import pytest
 
 REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
-sys.path.insert(0, REPO_ROOT)
+sys.path.insert(0, os.path.join(REPO_ROOT, "src"))
 
 from dr6plus_lenslike.dr6plus_lenslike import load_data, generic_lnlike  # noqa: E402
 
-DDIR = os.path.join(REPO_ROOT, "dr6plus_lenslike", "data", "v1.0")
+DDIR = os.path.join(REPO_ROOT, "src", "dr6plus_lenslike", "data", "v1.0")
 BASE = {"dr6plus_variant0": "covmat_clkk_dr6plus_variant0.txt",
         "dr6plus_optimal": "covmat_clkk_hilcTP_nightday_glsloo.txt",
         "actbase": "covmat_clkk_actbase.txt",

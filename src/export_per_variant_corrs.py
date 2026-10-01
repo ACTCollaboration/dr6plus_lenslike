@@ -28,7 +28,7 @@ import os
 import numpy as np
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-DDIR = os.path.join(REPO, 'dr6plus_lenslike', 'data', 'v1.0')
+DDIR = os.path.join(REPO, 'src', 'dr6plus_lenslike', 'data', 'v1.0')
 BASE_COV = {'dr6plus_variant0': 'covmat_clkk_dr6plus_variant0.txt',
             'dr6plus_optimal': 'covmat_clkk_hilcTP_nightday_glsloo.txt'}
 SPECS = ('TT', 'EE', 'TE')

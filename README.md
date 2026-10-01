@@ -78,7 +78,7 @@ base_config/          # Composable YAML building blocks
 runs/                 # Complete run configurations
   cobaya.sh           # SLURM submission script
   act_lcdm.yaml       # Example: lensing + CLASS_SZ
-dr6plus_lenslike/     # Main likelihood package
+src/dr6plus_lenslike/  # Main likelihood package
   dr6plus_lenslike.py # Likelihood implementation
   data/               # Bandpowers, covariance matrices, corrections
 ```
