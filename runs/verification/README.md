@@ -97,6 +97,11 @@ constrains only S_8^CMBL; sigma_8, Omega_m and H_0 follow the priors. class_sz
 reports Omega_m without the massive neutrino, so its chains are compared with the
 class_sz-convention inputs; the figures add omega_nu = 0.06/93.14 back.
 
+With Sum m_nu free (`*_lenscmbbao_mnu_camb`, prior U[0, 5] eV, not a reference
+chain) the joint posterior gives Sum m_nu = 0.064 +/- 0.037 eV, < 0.130 eV at 95
+per cent (actbase) and 0.063 +/- 0.036 eV, < 0.127 eV (act_planck), against an
+input of 0.06 eV; the mean sits 0.1 sigma above the input from the zero boundary.
+
 ## Figures
 
 Input values as dashed lines.
@@ -104,6 +109,7 @@ Input values as dashed lines.
 ![lensing alone](plots/verification_lens.png)
 ![lensing + BAO](plots/verification_lensbao.png)
 ![lensing + P-ACT + BAO](plots/verification_lenscmbbao_mnufixed.png)
+![Sum m_nu, lensing + P-ACT + BAO](plots/verification_mnu_1d.png)
 
 CAMB cross-check of the class_sz chains (ACTbase):
 
